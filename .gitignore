@@ -1,0 +1,23 @@
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.ipynb_checkpoints/
+*.egg-info/
+.venv/
+env/
+.env
+
+# data and artifacts
+data/raw/
+data/corpus/
+artifacts/
+*.npz
+*.npy
+*.pt
+*.bin
+
+# editor
+.vscode/
+.idea/
+.DS_Store

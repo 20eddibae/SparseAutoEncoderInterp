@@ -1,0 +1,41 @@
+# All paths are absolute. Edit for your environment (laptop vs HPC).
+
+# Path to the sibling sparse-dictionary-learning clone (instrument code, not analysis).
+sdl_repo: /Users/eddiebae/CS/sparse-dictionary-learning
+
+# Transformer checkpoint (produced by sdl_repo/transformer/train.py)
+# Relative to sdl_repo/transformer/
+gpt_ckpt_dir: out
+
+# SAE checkpoint (produced by sdl_repo/autoencoder/train.py)
+# Relative to sdl_repo/autoencoder/out/openwebtext/
+sae_ckpt_subdir: ""   # fill in after SAE training; e.g. "1707000000-autoencoder-openwebtext"
+
+# Dataset key used by sparse-dictionary-learning ResourceLoader
+dataset: openwebtext
+
+# Feature thresholding: a feature is "active" iff its SAE pre-activation > 0
+# (ReLU already enforces this; threshold > 0 lets us require stronger firing)
+activation_threshold: 0.0
+
+# Per-turn feature pooling: how to collapse the per-token feature map to one vector per turn
+# Options: "mean", "max", "any" (binary OR across tokens)
+turn_pooling: max
+
+# State-space coarsening for Markov chain
+coarsen:
+  method: topk       # "topk" or "cluster"
+  k: 5               # top-k active features per turn become the state (sorted tuple)
+  n_clusters: 50     # used only when method == "cluster"
+
+# Inference / extraction
+device: cpu          # set to cuda when running on HPC
+batch_size: 16
+max_tokens_per_turn: 512
+
+# Corpus selection
+corpus:
+  name: synthetic    # "sharegpt" | "synthetic"
+  n_conversations: 1000
+  max_turns: 8
+  sharegpt_path: data/raw/sharegpt.json   # only used if name == sharegpt

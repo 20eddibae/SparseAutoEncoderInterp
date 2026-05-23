@@ -1,0 +1,29 @@
+# Discovery / Dartmouth RC configuration.
+# Resolves $HOME on the cluster login or compute node.
+
+# Path to the sibling sparse-dictionary-learning clone on Discovery.
+# Override via env: SCF_SDL_REPO=...
+sdl_repo: ${HOME}/sparse-dictionary-learning
+
+gpt_ckpt_dir: out
+# Fill this in after the SAE training job finishes (e.g. "1731972401-autoencoder-openwebtext").
+sae_ckpt_subdir: ""
+
+dataset: openwebtext
+activation_threshold: 0.0
+turn_pooling: max
+
+coarsen:
+  method: topk
+  k: 5
+  n_clusters: 50
+
+device: cuda
+batch_size: 32
+max_tokens_per_turn: 512
+
+corpus:
+  name: sharegpt
+  n_conversations: 10000
+  max_turns: 12
+  sharegpt_path: ${HOME}/stochastic-conversation-features/data/raw/sharegpt.json
