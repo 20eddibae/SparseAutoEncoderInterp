@@ -16,15 +16,30 @@ MAX_ITERS="${MAX_ITERS:-40000}"
 
 cd "$SDL_REPO/transformer"
 
-if [[ "$N_GPUS" -gt 1 ]]; then
-    torchrun --standalone --nproc_per_node="$N_GPUS" train.py \
-        config/train_gpt2.py \
-        --wandb_project=scf-transformer \
-        --n_layer=1 --n_embd=128 --n_head=4 \
-        --max_iters="$MAX_ITERS" --lr_decay_iters="$MAX_ITERS"
+# Resume from checkpoint if one exists, so Slurm preemption / requeue / timeout
+# on the (slow) MIG GPU slice doesn't throw away progress. nanoGPT writes
+# out/ckpt.pt during eval; always_save_checkpoint=True guarantees a recent
+# checkpoint regardless of val-loss improvement.
+CKPT_DIR="${GPT_CKPT_DIR:-out}"
+if [[ -f "$CKPT_DIR/ckpt.pt" ]]; then
+    INIT_FROM=resume
+    echo "[train] found $CKPT_DIR/ckpt.pt -> resuming"
 else
-    python train.py config/train_gpt2.py \
-        --wandb_project=scf-transformer \
-        --n_layer=1 --n_embd=128 --n_head=4 \
-        --max_iters="$MAX_ITERS" --lr_decay_iters="$MAX_ITERS"
+    INIT_FROM=scratch
+    echo "[train] no checkpoint -> training from scratch"
+fi
+
+ARGS=(
+    config/train_gpt2.py
+    --wandb_project=scf-transformer
+    --n_layer=1 --n_embd=128 --n_head=4
+    --max_iters="$MAX_ITERS" --lr_decay_iters="$MAX_ITERS"
+    --init_from="$INIT_FROM"
+    --always_save_checkpoint=True
+)
+
+if [[ "$N_GPUS" -gt 1 ]]; then
+    torchrun --standalone --nproc_per_node="$N_GPUS" train.py "${ARGS[@]}"
+else
+    python train.py "${ARGS[@]}"
 fi

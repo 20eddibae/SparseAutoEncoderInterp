@@ -21,3 +21,7 @@ artifacts/
 .vscode/
 .idea/
 .DS_Store
+
+# logs and local harness state
+logs/
+.claude/

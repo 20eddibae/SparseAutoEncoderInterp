@@ -10,12 +10,16 @@
 set -euo pipefail
 
 # Default install locations on Discovery (override in the sbatch script if you put them elsewhere).
-: "${SCF_REPO:=$HOME/stochastic-conversation-features}"
-: "${SDL_REPO:=$HOME/sparse-dictionary-learning}"
+: "${SCF_REPO:=${SLURM_SUBMIT_DIR:-$HOME/SparseAutoEncoderInterp}}"
+: "${SDL_REPO:=/dartfs/rc/lab/S/SongL/EddieBae/sparse-dictionary-learning}"
 : "${CONDA_ENV:=scf-env}"
 
 export SCF_REPO SDL_REPO CONDA_ENV
 export SCF_SDL_REPO="$SDL_REPO"          # picked up by src/scf/config.py
+
+# Compute nodes have no TTY and no W&B API key, so online wandb.init() fails.
+# Log offline (saved under wandb/); run `wandb sync` from a login node later.
+export WANDB_MODE="${WANDB_MODE:-offline}"
 
 # Discovery uses environment modules; load python to get conda on PATH.
 module purge

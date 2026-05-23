@@ -1,7 +1,7 @@
 #!/bin/bash -l
 #SBATCH --job-name=scf-prep-owt
 #SBATCH --partition=standard
-#SBATCH --account=rc
+#SBATCH --account=lsonglab
 #SBATCH --time=04:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
@@ -14,5 +14,5 @@
 # Tokenize OpenWebText on CPU. ~1h wallclock, ~30GB disk.
 # Override defaults: SDL_REPO=...  sbatch slurm/01_prepare_owt.sbatch
 
-source "$(dirname "$0")/00_env.sh"
+source "${SLURM_SUBMIT_DIR:-/dartfs-hpc/rc/home/w/f0079dw/SparseAutoEncoderInterp}/slurm/00_env.sh"
 bash "$SCF_REPO/scripts/01_prepare_owt.sh"

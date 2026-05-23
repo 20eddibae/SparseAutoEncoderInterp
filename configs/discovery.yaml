@@ -23,7 +23,7 @@ batch_size: 32
 max_tokens_per_turn: 512
 
 corpus:
-  name: sharegpt
+  name: synthetic            # was sharegpt; switched 2026-05-23 (no JSON available). Revert by setting name: sharegpt and providing sharegpt_path below.
   n_conversations: 10000
   max_turns: 12
-  sharegpt_path: ${HOME}/stochastic-conversation-features/data/raw/sharegpt.json
+  sharegpt_path: ${HOME}/SparseAutoEncoderInterp/data/raw/sharegpt.json
