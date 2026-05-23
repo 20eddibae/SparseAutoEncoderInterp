@@ -38,4 +38,10 @@ docs/                PROJECT.md and HPC_PLAYBOOK.md
 pip install -e .
 ```
 
-See `docs/HPC_PLAYBOOK.md` for the GPU steps and `docs/PROJECT.md` for the proof inventory.
+## On Dartmouth Discovery — one-line bootstrap
+```
+git clone git@github.com:20eddibae/SparseAutoEncoderInterp.git stochastic-conversation-features
+cd stochastic-conversation-features
+bash bootstrap.sh all     # unpacks SDL, builds conda env via srun, submits 5-job pipeline
+```
+Subsequent runs: `bash bootstrap.sh submit`. See `docs/HPC_PLAYBOOK.md` for failure modes, `slurm/SETUP.md` for the manual breakdown, and `docs/PROJECT.md` for the proof inventory.
