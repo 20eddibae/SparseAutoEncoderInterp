@@ -7,7 +7,7 @@ sdl_repo: ${HOME}/sparse-dictionary-learning
 
 gpt_ckpt_dir: out
 # Fill this in after the SAE training job finishes (e.g. "1731972401-autoencoder-openwebtext").
-sae_ckpt_subdir: ""
+sae_ckpt_subdir: "1779647463.44"   # SAE job 8683697, 24413 steps, saved 2026-05-24
 
 dataset: openwebtext
 activation_threshold: 0.0
