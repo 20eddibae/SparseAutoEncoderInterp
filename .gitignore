@@ -25,3 +25,6 @@ artifacts/
 # logs and local harness state
 logs/
 .claude/
+
+# local Claude Code guidance — keep out of git history
+CLAUDE.md
