@@ -1,0 +1,31 @@
+# Discovery config for the WildChat cross-corpus separability check.
+# Identical to discovery.yaml except the corpus points at the WildChat dump
+# (allenai/WildChat-1M, English, fetched via scripts/fetch_wildchat.py into
+# ShareGPT format). WildChat is plain text (no HTML wrapping), so it cross-checks
+# that the HTML-stripped ShareGPT role-AUC (~0.92) is genuine human/AI language.
+# Same 6.64M-param transformer + same SAE checkpoint as every other run.
+
+sdl_repo: ${HOME}/sparse-dictionary-learning
+
+gpt_ckpt_dir: out
+sae_ckpt_subdir: "1779647463.44"   # same SAE as discovery.yaml (job 8683697)
+
+dataset: openwebtext
+activation_threshold: 0.0
+turn_pooling: max
+
+coarsen:
+  method: topk
+  k: 5
+  n_clusters: 50
+
+device: cuda
+batch_size: 32
+max_tokens_per_turn: 512
+
+corpus:
+  name: sharegpt             # reuses the ShareGPT loader; the JSON is WildChat in ShareGPT format
+  n_conversations: 10000
+  max_turns: 12
+  sharegpt_path: ${HOME}/SparseAutoEncoderInterp/data/raw/wildchat.json
+  strip_html: true           # harmless here (WildChat is ~plain); cleans the <1% residual HTML
