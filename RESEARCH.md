@@ -270,3 +270,27 @@ transition graph from `markov.py`/`coarsen.py`) on `features_stripped.npz`, then
 the **role-coupled chain** (H5/H6): estimate `T_{h→a}` and `T_{a→h}` separately
 and test (a) that modeling the alternation lowers the CK residual vs the pooled
 chain in H1, and (b) that the two kernels differ (role-asymmetric dynamics).
+
+## 2026-05-25 — Research question framing + first results (see RESULTS.md)
+
+**Research question.** *How random is human–AI interaction?* Operationalized as
+the entropy/predictability of an SAE-feature Markov chain over a conversation —
+and, crucially, decomposed by who acts (human-surprise vs AI-self-surprise).
+
+**Two chains (from the plan).** *Chain 1* = within-generation, token-level feature
+dynamics (the paper's finite-state automata; needs per-token extraction — not yet
+run). *Chain 2* = conversation-level, turns as time steps, states = clusters of
+per-turn SAE activations (conversation "modes"). We run Chain 2 on the trusted
+corpora; it is also where the human enters.
+
+**First results are in `RESULTS.md`** (root). Headline: at the conversational-mode
+level (K=32) the process is moderately-high randomness with stable structure
+(entropy rate 74–84% of max; ergodic, mixing in 4–10 turns), and the randomness is
+**asymmetric — the human is ~1.6–2× less predictable than the AI** (human surprise
+exceeds AI self-surprise by +0.50/+0.68 nats on ShareGPT/WildChat). Probability
+modules exercised so far: `markov`,`coarsen`,`entropy` (H1/H4 turn chain);
+`poisson`,`concentration`,`clt`,`mgf`,`tail_sum` (H3 — L0 is super-Poissonian,
+features co-fire); `entropy`,`bayes` (H2 — roles have ~equal marginal entropy, so
+separability is about *which* features fire). Remaining: token-level FSA
+(per-token extraction, GPU), and CPU-only `order_stats` / LLR proxy /
+logit-weight MGF. See the RESULTS.md scoping table.

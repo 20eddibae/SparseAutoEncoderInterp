@@ -124,3 +124,52 @@ open-ended features.
 The single remaining GPU step is the **per-token extraction** needed for the
 paper's within-generation finite-state automata (Chain 1). Everything else runs
 on CPU from the existing per-turn artifacts.
+
+---
+
+## Synthesis — how random is human–AI interaction?
+
+Caveat first: this is randomness at the level of **conversational modes (K=32
+clusters)** seen through our small SAE, measured **per turn** (not token-level
+perplexity). Absolute entropies scale with K, so the *relative* comparisons
+(human vs AI, ShareGPT vs WildChat) are the trustworthy part; the absolute
+percentages less so.
+
+Entropy rates converted to "effective number of equally-likely next modes"
+(`exp(H)`, out of 32):
+
+| | nats | effective next-modes | % of max randomness |
+|---|---:|---:|---:|
+| max (uniform) | 3.466 | 32 | 100% |
+| WildChat entropy rate | 2.903 | 18.2 | 84% |
+| ShareGPT entropy rate | 2.566 | 13.0 | 74% |
+| human turn → next (human surprise) | 2.64 / 3.07 | 14 / 21 | — |
+| AI turn → next (AI self-surprise) | 2.15 / 2.39 | 8.6 / 11 | — |
+
+**1. Mostly random, but structured.** Knowing the current mode predicts the next
+only ~16–26% better than chance (74–84% of max entropy remains): ~13–18 effective
+next-modes of 32. Far from deterministic, but not a coin flip.
+
+**2. The randomness is asymmetric, and the human is its source** (replicates on
+both corpora). The AI's next move is ~1.6–2× more predictable than the human's
+(AI self-surprise 8.6–11 effective modes vs human 14–21). Relative to the model's
+own autoregressive flow, the human injects **+0.50–0.68 nats of excess surprise**.
+The machine half is comparatively on-rails; the human half is where the
+randomness lives.
+
+**3. A convergent stochastic process, not a runaway one.** Both chains are
+ergodic — they forget the opening topic in ~4–10 turns and settle into a stable
+stationary mix of modes (π entropy 3.33 of 3.466). Genuinely random (no single
+attractor) but bounded (no endless wander): the conversation explores a stable
+repertoire of ~a-dozen-plus modes, reshuffled each turn, with the human doing
+most of the reshuffling.
+
+**Answer:** moderately-high randomness with stable structure, **concentrated on
+the human side** of the exchange.
+
+Limits before leaning on this: mode-level not token-level (the token FSA / Chain 1
+is the model-side "on-rails" question, needs per-token extraction); coarse K=32
+and a weak 1-layer model (the human>AI *gap* is robust, the absolute % less so —
+a K-sweep would confirm); and the chain is not perfectly Markov (CK ≈ 1.6), so the
+1-step entropy rate slightly over-states randomness (the role-coupled H5/H6 would
+tighten it).
