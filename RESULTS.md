@@ -59,13 +59,53 @@ Bayes top-feature sets differ by role). Entropy is descriptive here, not the
 discriminator — echoing the paper's caution that information metrics didn't track
 the property of interest.
 
-## H1 / H4 — turn-level conversation Markov chain  [run — see Markov section]
-Submitted as SLURM job 8688059 (`slurm/08_markov_chain.sbatch`), results appended
-below when complete. `scripts/markov_chain.py` clusters per-turn activation
-vectors into K=32 "conversation modes" (Option 3) and builds the turn→turn chain:
-Chapman–Kolmogorov residual, stationary distribution π and convergence, mixing
-time / spectral gap, entropy rate, and the role-asymmetry "human surprise vs AI
-self-surprise" measure.
+## H1 / H4 — turn-level conversation Markov chain  [run]
+`scripts/markov_chain.py` (SLURM job 8688059, CPU, 45s). Clusters per-turn
+activation vectors into **K=32 "conversation modes"** (Option 3, MiniBatchKMeans
+on L2-normalized vectors), then builds the turn→turn chain within each
+conversation. Modules: `markov` (transition fit, Chapman–Kolmogorov, stationary
+distribution, mixing time), `entropy` (entropy rate, conditional entropy).
+
+| Quantity | ShareGPT (stripped) | WildChat |
+|---|---:|---:|
+| conversations / turn-transitions | 10,000 / 60,133 | 9,995 / 35,695 |
+| Chapman–Kolmogorov residual (Frobenius) | 1.72 | 1.62 |
+| spectral gap `1−\|λ₂\|` | 0.135 | 0.394 |
+| mixing time (TV ≤ 0.25) | **10 turns** | **4 turns** |
+| TV(start→π) after 10 turns | 0.047 | 0.001 |
+| **converges to unique stationary π** | **yes** | **yes** |
+| entropy of π (max = ln 32 = 3.466) | 3.336 | 3.323 |
+| entropy rate `h` (nats/turn) | 2.566 | 2.903 |
+| **human surprise** `H(ai→next human)` | 2.641 | 3.068 |
+| **AI self-surprise** `H(human→next ai)` | 2.145 | 2.394 |
+| **gap (human − AI)** | **+0.496** | **+0.675** |
+
+**Convergence.** Both chains are ergodic and **converge to a unique stationary
+distribution** (TV(start→π) decays to ~0). So a conversation's "mode" does settle
+— but π has high entropy (3.32–3.34 of a 3.466 max), so it settles onto a
+*spread* of modes with a few mild attractors (top mode ~9–10% mass), not a single
+absorbing feature. WildChat mixes faster (4 vs 10 turns; larger spectral gap),
+i.e. its conversations forget their opening topic sooner.
+
+**Not perfectly first-order.** CK residual ≈ 1.6–1.7 (not 0) → there is
+higher-order structure the pooled 1-step chain misses — expected, because role
+strictly alternates (period-2). This is exactly what the role-coupled chain
+(H5/H6, scoped in `RESEARCH.md`) is designed to model.
+
+**Headline — "where the human enters" replicates across both corpora.** The
+human's next conversational mode is **consistently less predictable than the
+model's**: `H(ai-turn → next human-turn)` exceeds `H(human-turn → next ai-turn)`
+by **+0.50 nats (ShareGPT)** and **+0.68 nats (WildChat)**. The model's
+continuations are more on-rails (lower conditional entropy); the human injects
+more surprise when re-entering. This quantifies the prompt's intuition — humans
+are the perturbation that moves the conversation between modes — and it holds on
+two independent real-dialogue corpora with our own transformer + SAE.
+
+Per-state structure is interpretable too: some modes are near-deterministic
+(lowest conditional entropy ~0.98 nats on ShareGPT) and others wide-open (~3.2
+nats), i.e. some conversation modes strongly predict the next mode and others
+don't — the turn-level analog of the paper's deterministic (base64-loop) vs
+open-ended features.
 
 ---
 
