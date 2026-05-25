@@ -27,3 +27,4 @@ corpus:
   n_conversations: 10000
   max_turns: 12
   sharegpt_path: ${HOME}/SparseAutoEncoderInterp/data/raw/sharegpt.json
+  strip_html: true           # 2026-05-25: gpt turns are HTML-wrapped, human turns plain -> raw extraction's 0.99 role-AUC was ~entirely a markup tell (scripts/evaluate_html_artifact.py). Strip to measure language, not HTML.

@@ -19,6 +19,11 @@ class CorpusConfig:
     n_conversations: int = 1000
     max_turns: int = 8
     sharegpt_path: str = "data/raw/sharegpt.json"
+    # ShareGPT52K assistant turns are HTML-wrapped (<div class="markdown prose">),
+    # human turns are plain. With strip_html=True the loader converts each turn's
+    # value to plain text so role separability reflects language, not markup.
+    # See scripts/evaluate_html_artifact.py for why this matters.
+    strip_html: bool = False
 
 
 @dataclass

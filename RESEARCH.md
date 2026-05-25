@@ -99,4 +99,51 @@ cue. So the *true* semantic-role separability is somewhere below 0.99.
 **To get the clean number:** re-run extraction on HTML-stripped text, or use a
 clean-text corpus (WildChat — gated on HF, needs a token). The "do we need a
 bigger model" question is already answered (no); this only refines *how*
-separable real roles are.
+separable real roles are. → **Done below (HTML-stripped re-extraction).**
+
+## 2026-05-25 (later) — HTML-stripped re-extraction: the genuine number is ~0.92
+
+The 0.99 above conflates two things: genuine human/AI language, and the fact
+that ShareGPT52K assistant turns are HTML-wrapped (`<div class="markdown
+prose">`) while human turns are plain. Quantifying the confound on the raw
+`features.npz` (`scripts/evaluate_html_artifact.py`, which replays the loader to
+tag each turn's raw text): HTML presence ≈ role almost perfectly — human 0.1%
+HTML vs AI 99.9% HTML, with only **52 plain-AI and 51 HTML-human turns** out of
+70,132. A single "contains an HTML tag" bit predicts role at **AUC 0.999**,
+*beating* the full 4096-dim feature vector (0.9935).
+
+That collinearity also means the obvious in-place control is unreliable:
+dropping the top-N HTML-correlated features sends role to chance (top-200 →
+0.508), but because role and HTML are ~collinear in the raw corpus, *any*
+genuinely role-predictive feature also looks HTML-predictive and gets dropped.
+So that test **overstates** the artifact and is not decisive.
+
+**The decisive test is to remove the markup at the source and re-extract.**
+Added `corpus.strip_html` (config) and a stdlib HTML→text stripper in
+`src/scf/corpus/sharegpt.py` (scf-env has no bs4/lxml), set `strip_html: true`
+in `configs/discovery.yaml`, and re-ran the pipeline — **same 6.64M-param
+transformer, same SAE checkpoint, only the input text changed**:
+
+- extraction job 8687825 → `artifacts/features_stripped.npz` (70,133 turns)
+- probe job 8687826 (`slurm/07`, `FEATURES=…features_stripped.npz`)
+
+| Probe | Raw / HTML AUC | **Stripped AUC** |
+|-------|---------------:|-----------------:|
+| A role, all turns (linear)       | 0.989    | **0.918** |
+| A role, all turns (nonlinear GB) | 0.99998  | **0.978** |
+| B role, generated turns only     | 0.995    | **0.931** |
+| C seed (turn0) vs generated      | 0.820    | 0.757     |
+| D role, group-aware split        | 0.994    | **0.914** |
+
+**Verdict (refined).** Role is **genuinely** separable from real human/AI
+*language* at **AUC ~0.92 linear / ~0.98 nonlinear**, and the signal is not a
+first-turn cue (B=0.931 on generated-only turns) nor conversation leakage
+(D=0.914, group-aware). The raw 0.99 was ~0.07 (linear) inflated by HTML markup,
+and the near-perfect 0.99998 nonlinear was mostly that tell. The headline
+conclusion is unchanged in *direction* — the lightweight models suffice, no
+bigger model needed — but the honest magnitude is **~0.92, not 0.99**.
+
+`artifacts/features.npz` is kept as the raw/HTML "before"; the clean run is
+`artifacts/features_stripped.npz`. A residual cross-check (e.g. WildChat) could
+confirm ~0.92 isn't itself a subtler ShareGPT-specific tell, but the formatting
+confound — the only obvious one — is now removed.
