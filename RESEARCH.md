@@ -172,3 +172,101 @@ across corpora, so the **~0.92 linear / ~0.98 nonlinear is genuine human/AI
 language separability** — confirmed, not just "formatting removed." Final
 answer to "are the features separable by role": **yes, at AUC ~0.92, robust to
 corpus, first-turn exclusion, and conversation-leakage controls.**
+
+## 2026-05-25 — Mapping "Towards Monosemanticity" to the probability modules
+
+Reference: Bricken et al., *Towards Monosemanticity: Decomposing Language Models
+With Dictionary Learning*, Transformer Circuits Thread, 2023
+(https://transformer-circuits.pub/2023/monosemantic-features/index.html).
+
+**Why this paper is directly usable here:** its headline run "A/1" is *our exact
+configuration* — a 1-layer transformer with `d_model=128`, `d_mlp=512`, and a
+sparse autoencoder with **4096 features (8× expansion)**, trained on The Pile.
+That is the same architecture and SAE width as this project. So the paper's
+feature taxonomy (base64, DNA, Arabic/Hebrew script, HTML) and its measurement
+methods transfer almost directly to our `artifacts/features_stripped.npz` and
+`artifacts/features_wildchat.npz`. The mapping below gives each `src/scf/
+probability/` module a concrete, paper-grounded experiment. Run everything on
+the trusted corpora (stripped ShareGPT / WildChat), not the raw HTML one.
+
+### `markov.py` + `coarsen.py` ← "Finite State Automata" (the headline match)
+The paper's "finite-state automata" — a base64 feature that re-excites itself
+(single-node loop), an all-caps-snake-case 2-node system (text node ↔ underscore
+node), and a 4-node HTML system (`<tag>` → tag-name → tag-close → whitespace →
+back to `<tag>`) — **are Markov chains over feature-states**, formed by one
+feature raising the probability of tokens that make the next feature fire. Our
+`coarsen.py` (top-k / cluster state) → `estimate_transition` → `chapman_
+kolmogorov_test` → `stationary_distribution` → `mixing_time` pipeline recovers
+exactly these objects. Concrete deliverable: build the feature-state transition
+matrix and (a) flag **self-exciting features** (large diagonal `P[i,i]`) and
+small cycles = their FSA; (b) hunt specifically for an HTML/base64 automaton; (c)
+report stationary distribution and mixing time. This makes H1/H4 — and the
+role-coupled H5/H6 below — a *reproduction* of the paper's hand-found automata on
+the same model size, not just a course exercise.
+
+### `poisson.py` ← L0 norm and feature-density histograms
+The paper tracks the **L0 norm** (number of features active per token; target
+< 10–20) and **feature-density histograms** (log-scale; the bimodal "ultralow-
+density cluster" vs the interpretable high-density cluster; 168 dead + 292
+ultralow of 4096). Our `N_active` per turn is a sum of 4096 Bernoulli firings →
+Le Cam Poisson(λ = Σ pᵢ), which `poisson_thinning_test` already computes. Paper-
+backed prediction: real data deviates **above** the Poisson null because
+features are correlated (feature-splitting ⇒ co-firing). Also reproduce the
+feature-density histogram and report dead / ultralow / high-density counts for
+our SAE.
+
+### `bayes.py` ← log-likelihood-ratio proxies (they use Bayes' rule explicitly)
+The paper validates features with a computational proxy `log(P(s|context)/P(s))`
+and derives `P(s|Arabic)` via **Bayes' rule**. Our `posterior_role_given_feature`
+is the conjugate object `P(role | feature fires)`. Deliverable: build an LLR
+proxy for a cleanly detectable context (code, base64, a Unicode script, or role)
+and correlate it with feature activation — the paper's validity bar is Pearson
+0.74 (Arabic) / 0.80 (DNA). Report the top per-role discriminative features and
+their posteriors.
+
+### `order_stats.py` + `concentration.py` ← expected-value plots & "big activations matter"
+The paper argues "large feature activations have larger effects" and uses
+**expected-value plots** (the activation distribution weighted by activation
+magnitude) to show most of a feature's *impact* comes from its high activations.
+`order_stats.py` (max activation, top1−top2 gap, top-1 fraction = a
+monosemanticity/specificity score) plus `concentration.py` (Markov's inequality
+`P(act ≥ t) ≤ μ/t`, Chebyshev, sub-Gaussian) formalize this: show that activation
+*mass* concentrates in the interpretable high tail, and bound that tail.
+
+### `mgf.py` + `clt.py` ← logit-weight bimodality ("interference" mode)
+Throughout the paper, a feature's **logit-weight distribution is bimodal**: a
+large central near-Gaussian "interference" mode plus a small "signal" mode of
+context-specific tokens. Compute per-feature logit weights (SAE decoder ×
+MLP-down × unembed, the path-expansion of the Framework), then use
+`fit_normal_via_mgf` / the CLT diagnostic to test whether the central mode is
+Gaussian interference — separating signal from noise quantitatively.
+
+### `entropy.py` ← H2 role entropy + a documented caution
+H2 (entropy of the per-role feature-firing distribution; predict AI lower →
+"mode-seeking") is now runnable on a trusted corpus. Add the Markov **entropy
+rate** `Σ πᵢ H(Pᵢ·)` as a single predictability scalar, and compare human- vs
+ai-conditioned entropy rate. Caution to cite: the paper *tried* an information-
+theoretic metric to select dictionaries and found it **did not** correlate with
+interpretability — so treat entropy as descriptive, not as a quality target.
+
+### `tail_sum.py` ← mean active-feature count sanity check
+`E[N_active] = Σ_{k≥1} P(N_active ≥ k)` cross-checks the L0 mean from the Poisson
+analysis via the tail-sum identity.
+
+### Two cross-cutting probability ideas (not a single module)
+- **Importance sampling / change of measure.** The paper resamples dead SAE
+  neurons with probability ∝ loss², and reweights auto-interp examples by
+  `feature_density × interval_probability`. A clean place to demonstrate
+  importance weights / reweighted estimators.
+- **"Model vs data" control.** The paper runs dictionary learning on a
+  *random-weight* transformer to separate dataset structure from model
+  computation. This is the exact analog of our **synthetic-corpus control**
+  (role AUC 0.56): same logic on a different axis — cite as precedent for why
+  the synthetic baseline matters.
+
+### Suggested first deliverable
+Implement the **FSA detector** (self-loops + small cycles in the feature-state
+transition graph from `markov.py`/`coarsen.py`) on `features_stripped.npz`, then
+the **role-coupled chain** (H5/H6): estimate `T_{h→a}` and `T_{a→h}` separately
+and test (a) that modeling the alternation lowers the CK residual vs the pooled
+chain in H1, and (b) that the two kernels differ (role-asymmetric dynamics).
