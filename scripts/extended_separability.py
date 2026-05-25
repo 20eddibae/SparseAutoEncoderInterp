@@ -1,18 +1,21 @@
 #!/usr/bin/env python3
 """
-Diagnose WHY per-turn SAE features are / are not separable.
+Diagnose whether and why per-turn SAE features are separable by role.
 
-Hypothesis: the `synthetic` corpus generates every turn after the first from
-the SAME transformer (same sampling), so human vs ai turns are drawn from one
-distribution and role is unseparable by construction. The only real text is
-turn 0 (an OpenWebText seed). These probes test that mechanism and check
-whether the features encode ANY recoverable structure.
+The probes measure the actual features in --features; nothing about the corpus
+or expected outcome is assumed. The final verdict is computed from the AUCs.
 
-Probes (all on artifacts/features.npz, CPU only):
+Probes (CPU only):
   A. role, all turns           - linear (mag + support) and nonlinear
-  B. role, generated-only      - exclude turn_idx==0; should collapse to chance
-  C. seed vs generated         - turn_idx==0 vs >0; separable => features OK
+  B. role, generated-only      - exclude turn_idx==0 (no first-turn cue)
+  C. seed vs generated         - turn_idx==0 vs >0 (does structure exist at all)
   D. group-aware role          - split by conv_id (no conversation leakage)
+
+Reading: if A and B both separate, role is learnable from the features. If B
+collapses toward chance while C stays high, the signal lives only in the first
+turn and the features still encode distributional structure. Whether that
+reflects genuine human/AI language or a corpus artifact (e.g. formatting) is
+not something these probes can decide.
 """
 from __future__ import annotations
 import argparse
@@ -68,6 +71,7 @@ def main():
     Xtr, Xte, ytr, yte = train_test_split(sc.transform(X), y, test_size=.25,
                                            random_state=0, stratify=y)
     a, u = auc_acc(lin(), Xtr, ytr, Xte, yte)
+    uA = u
     print(f"  linear(mag)   acc={a:.4f} AUC={u:.4f}  (n={2*n}, baseline 0.5)")
     Xb = sup[sel]
     Xbtr, Xbte, _, _ = train_test_split(Xb, y, test_size=.25, random_state=0, stratify=y)
@@ -86,8 +90,8 @@ def main():
     Xtr, Xte, ytr, yte = train_test_split(sc.transform(X), y, test_size=.25,
                                            random_state=0, stratify=y)
     a, u = auc_acc(lin(), Xtr, ytr, Xte, yte)
+    uB = u
     print(f"  linear(mag)   acc={a:.4f} AUC={u:.4f}  (n={2*n})")
-    print("  -> expect ~chance: confirms generated human/ai are one distribution")
 
     # ---------- C: seed (turn 0) vs generated ----------
     print("\n=== C. seed(turn0) vs generated(turn>0) ===")
@@ -97,8 +101,8 @@ def main():
     Xtr, Xte, ytr, yte = train_test_split(sc.transform(X), y, test_size=.25,
                                            random_state=0, stratify=y)
     a, u = auc_acc(lin(), Xtr, ytr, Xte, yte)
+    uC = u
     print(f"  linear(mag)   acc={a:.4f} AUC={u:.4f}  (n={2*n})")
-    print("  -> high AUC => features DO encode distribution; role label is the issue")
 
     # ---------- D: group-aware role (no conv leakage) ----------
     print("\n=== D. role, group-aware split by conv_id ===")
@@ -109,12 +113,28 @@ def main():
     gss = GroupShuffleSplit(n_splits=1, test_size=.25, random_state=0)
     tr, te = next(gss.split(Xs, y, groups=g))
     a, u = auc_acc(lin(), Xs[tr], y[tr], Xs[te], y[te])
+    uD = u
     print(f"  linear(mag)   acc={a:.4f} AUC={u:.4f}  (no shared conversations)")
 
-    print("\n=== INTERPRETATION ===")
-    print("If B ~0.50 and C >>0.50: features are fine; the synthetic corpus makes")
-    print("role unlearnable (both roles sampled from the same model). Fix = use a")
-    print("real human/AI corpus (sharegpt) where the two roles differ in distribution.")
+    # ---------- verdict computed from the actual AUCs ----------
+    hi, lo = 0.70, 0.60  # separable / near-chance thresholds
+    print("\n=== INTERPRETATION (computed from the AUCs above) ===")
+    if uA >= hi and uB >= hi:
+        print(f"Role is separable from the features (A={uA:.3f}, B={uB:.3f}), and the")
+        print("signal is not just the first turn (B stays high). Group-aware split")
+        print(f"D={uD:.3f} {'agrees' if abs(uD-uA) < 0.05 else 'differs from A — check for leakage'}.")
+        print("These probes cannot tell genuine human/AI language from a corpus")
+        print("artifact (e.g. role-specific formatting); inspect top features to decide.")
+    elif uA >= lo > uB:
+        print(f"Weak role signal (A={uA:.3f}) that collapses on generated-only turns")
+        print(f"(B={uB:.3f} ~ chance): the signal lives in the first turn, not the role.")
+        print(f"Structure still exists in the features (C={uC:.3f}). Role is effectively")
+        print("unlearnable here — typical of a corpus where both roles share one")
+        print("distribution. A corpus whose roles differ in distribution would separate.")
+    else:
+        print(f"Role near chance (A={uA:.3f}, B={uB:.3f}). seed-vs-generated C={uC:.3f}:")
+        print("if C is high the features encode structure but not role; if C is also low")
+        print("the features may be degenerate — check sanity output from step 06.")
 
 
 if __name__ == "__main__":

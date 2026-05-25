@@ -11,7 +11,12 @@
 #SBATCH --error=logs/%x.%j.err
 #SBATCH --mail-type=END,FAIL
 
-# CPU-only extended diagnosis of role separability on artifacts/features.npz.
+# CPU-only extended diagnosis of role separability.
+# Override: FEATURES=artifacts/features_synthetic.npz sbatch slurm/07_extended_separability.sbatch
 source "${SLURM_SUBMIT_DIR:-/dartfs-hpc/rc/home/w/f0079dw/SparseAutoEncoderInterp}/slurm/00_env.sh"
+
+FEATURES="${FEATURES:-$SCF_REPO/artifacts/features.npz}"
+echo "[job] FEATURES=$FEATURES"
+
 export OMP_NUM_THREADS=${SLURM_CPUS_PER_TASK:-8}
-python "$SCF_REPO/scripts/extended_separability.py" --features "$SCF_REPO/artifacts/features.npz"
+python "$SCF_REPO/scripts/extended_separability.py" --features "$FEATURES"

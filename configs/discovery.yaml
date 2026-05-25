@@ -23,7 +23,7 @@ batch_size: 32
 max_tokens_per_turn: 512
 
 corpus:
-  name: synthetic            # was sharegpt; switched 2026-05-23 (no JSON available). Revert by setting name: sharegpt and providing sharegpt_path below.
+  name: sharegpt             # 2026-05-25: real corpus RyokoAI/ShareGPT52K sg_90k_part1.json (~45k real human/ChatGPT convs) downloaded to data/raw/. Was synthetic (2026-05-23) when no JSON was available.
   n_conversations: 10000
   max_turns: 12
   sharegpt_path: ${HOME}/SparseAutoEncoderInterp/data/raw/sharegpt.json

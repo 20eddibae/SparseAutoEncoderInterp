@@ -65,3 +65,38 @@ ShareGPT JSON was available (see `configs/discovery.yaml`).
 Reproduce: `sbatch slurm/06_check_separability.sbatch` (sanity + role probe,
 writes `artifacts/separability.png`) and `sbatch slurm/07_extended_separability.sbatch`
 (probes A–D).
+
+## 2026-05-25 — Real corpus confirms it: models fine, corpus was the blocker
+
+Swapped the corpus to a **real** human/AI dataset (RyokoAI/ShareGPT52K,
+`sg_90k_part1.json`, 45,332 real human↔ChatGPT convs; `corpus.name: sharegpt`)
+and re-ran extraction (job 8686447, 70,132 turns) + both separability checks
+(8686448, 8686449). **Nothing about the transformer or SAE changed** — same
+6.64M-param 1-layer GPT, same SAE checkpoint. Synthetic baseline preserved at
+`artifacts/features_synthetic.npz`.
+
+| Probe | Synthetic AUC | **Real (ShareGPT) AUC** |
+|-------|--------------:|------------------------:|
+| A role, all turns (linear) | 0.564 | **0.989** |
+| A role, all turns (nonlinear GB) | 0.575 | **0.99998** |
+| B role, generated turns only | 0.509 | **0.995** |
+| C seed (turn0) vs generated | 0.966 | 0.820 |
+| D role, group-aware split | 0.567 | **0.994** |
+
+**Verdict: the lightweight models are sufficient — capacity was never the
+issue.** Same models, swap synthetic→real corpus, and role goes 0.56→0.99.
+Probe B is no longer ~chance (that assumption was synthetic-specific; the
+script's printed "expect ~chance" note is now stale). D≈A rules out leakage.
+
+**Caveat — the 0.99 is inflated by a formatting artifact.** In ShareGPT52K the
+assistant (`gpt`) turns are HTML-wrapped (`<div class="markdown prose…">`):
+354,892 `<div>` hits across ~363,740 gpt turns (~98%), while human turns are
+plain text. The SAE can separate roles partly by detecting HTML-tag tokens, a
+trivial tell rather than genuine human-vs-AI language. The top discriminative
+feature (1295, coef +3.81, ~2× the next) is consistent with one near-trivial
+cue. So the *true* semantic-role separability is somewhere below 0.99.
+
+**To get the clean number:** re-run extraction on HTML-stripped text, or use a
+clean-text corpus (WildChat — gated on HF, needs a token). The "do we need a
+bigger model" question is already answered (no); this only refines *how*
+separable real roles are.
