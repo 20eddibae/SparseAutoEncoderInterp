@@ -11,6 +11,9 @@ Maps to the probability modules scoped in `RESEARCH.md`. Status legend:
 **[run]** executed below · **[scoped]** specified, not yet run · **[needs-extract]**
 requires per-token feature extraction (a GPU step).
 
+**Figures and machine-readable outputs for every result below live in
+[`results/`](results/README.md)** (`results/figures/01–05*.png`).
+
 ---
 
 ## H3 — concentration of L0 / active-feature count  [run]
@@ -107,6 +110,55 @@ nats), i.e. some conversation modes strongly predict the next mode and others
 don't — the turn-level analog of the paper's deterministic (base64-loop) vs
 open-ended features.
 
+## H5 / H6 — role-coupled chain & generative MCMC  [run]
+`scripts/mcmc_conversations.py` (CPU, K=32). Role strictly alternates, so the
+pooled 1-step chain (H1) is not first-order. We estimate the two role kernels
+separately — `T_{h→a}` (human-turn mode → next ai mode = AI self-surprise) and
+`T_{a→h}` (ai-turn mode → next human mode = human surprise) — and add two samplers
+over the fitted chain. Figures: `results/figures/04_markov_chain.png`,
+`results/figures/05_mcmc_generative.png`.
+
+| Quantity | ShareGPT (stripped) | WildChat |
+|---|---:|---:|
+| pooled CK residual | 1.720 | 1.616 |
+| **role-coupled CK residual** (`‖P2_emp − T_{h→a}T_{a→h}‖`) | **1.171** | **1.231** |
+| CK improvement | **+0.549** | **+0.385** |
+| kernel difference `‖T_{h→a} − T_{a→h}‖_F` | 2.596 | 2.350 |
+| human surprise / AI self-surprise (nats) | 2.641 / 2.145 | 3.068 / 2.394 |
+| **surprise gap (human − AI)** | **+0.496** | **+0.675** |
+| Metropolis–Hastings acceptance | 0.731 | 0.713 |
+| **MH TV(empirical, π) after 200k steps** | **0.0068** | **0.0049** |
+| synthetic surprise gap (generative) | +0.492 | +0.668 |
+| TV(mode dist real, synthetic) | 0.0151 | 0.0105 |
+| distinct modes/conv — real vs synthetic | 3.95 vs 5.18 | 3.18 vs 3.85 |
+
+**Modeling the role alternation captures real structure.** Splitting the chain by
+role drops the Chapman–Kolmogorov residual by **~0.4–0.55** (1.72→1.17 ShareGPT,
+1.62→1.23 WildChat): a chunk of the "non-Markovianity" in H1 was just the period-2
+role flip, and the role-coupled 2-step model `T_{h→a}T_{a→h}` recovers it. The two
+kernels are genuinely different (`‖·‖_F` ≈ 2.4–2.6), i.e. **the dynamics are
+role-asymmetric** — which is the structural reason the human is the less-predictable
+side, not an artifact of pooling.
+
+**Metropolis–Hastings reproduces π.** A textbook MCMC sampler (symmetric random-walk
+proposal, target = the analytic stationary π) converges to within **TV ≈ 0.005–0.007**
+of the eigen/power-iteration π after 200k steps (acceptance ~0.72). The two
+independent routes to π agree — a sanity check on the stationary-distribution claim
+in H1/H4.
+
+**Generative posterior-predictive check.** Forward-sampling whole synthetic
+conversations from the role-coupled kernels (matching the real opening-mode and
+length distributions) reproduces the marginal mode mix almost exactly (TV ≈ 0.01)
+and **inherits the headline asymmetry** (synthetic gap +0.49/+0.67 vs real
++0.50/+0.68) — confirming the +0.50/+0.68 nats is a property of the fitted kernels,
+not a measurement quirk. **Where the memoryless model fails:** synthetic
+conversations visit **more distinct modes per conversation** than real ones (5.18 vs
+3.95 ShareGPT; 3.85 vs 3.18 WildChat). Real dialogue is *stickier* — it revisits a
+smaller working set of modes than a 1-step Markov chain predicts. This is exactly
+the residual higher-order structure the CK test flags (topical coherence that spans
+more than one turn), and it is the concrete remaining gap a higher-order or
+context-augmented chain would close.
+
 ---
 
 ## Scoping the remainder of the paper → probability mapping
@@ -114,6 +166,7 @@ open-ended features.
 | Module(s) | Paper hook | Status | Note |
 |---|---|---|---|
 | `markov`+`coarsen` (turn chain, H1/H4) | conversation dynamics | **[run]** | job 8688059, below |
+| `markov` **role-coupled + MCMC** (H5/H6) | role-asymmetric dynamics | **[run]** | `mcmc_conversations.py`; CK 1.72→1.17, MH→π, generative check |
 | `poisson`+`concentration`+`clt`+`mgf`+`tail_sum` (H3) | L0 / feature density | **[run]** | over-dispersed, non-Poisson |
 | `entropy`+`bayes` (H2) | role entropy, LLR proxy | **[run]** | roles ~equal entropy |
 | `order_stats` | expected-value plots / specificity | **[scoped]** | per-turn top-1 fraction & max-gap; trivial to add to H3 |
@@ -171,5 +224,7 @@ Limits before leaning on this: mode-level not token-level (the token FSA / Chain
 is the model-side "on-rails" question, needs per-token extraction); coarse K=32
 and a weak 1-layer model (the human>AI *gap* is robust, the absolute % less so —
 a K-sweep would confirm); and the chain is not perfectly Markov (CK ≈ 1.6), so the
-1-step entropy rate slightly over-states randomness (the role-coupled H5/H6 would
-tighten it).
+1-step entropy rate slightly over-states randomness — the role-coupled chain (H5/H6,
+now run) cuts the CK residual by ~0.4–0.55 and confirms the residual that remains is
+real topical stickiness (real conversations revisit fewer modes than the memoryless
+model generates), not just the role flip.
