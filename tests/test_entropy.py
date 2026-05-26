@@ -1,8 +1,20 @@
 import numpy as np
 
 from scf.probability.entropy import (
-    plug_in_entropy, entropy_with_chebyshev_bound, kl_divergence,
+    plug_in_entropy, entropy_with_chebyshev_bound, entropy_with_delta_se, kl_divergence,
 )
+
+
+def test_delta_se_decreases_with_N():
+    small = entropy_with_delta_se(np.array([20, 30, 50, 40]))
+    large = entropy_with_delta_se(np.array([2000, 3000, 5000, 4000]))
+    assert large.delta_se < small.delta_se
+    assert large.delta_se > 0
+
+
+def test_delta_se_zero_for_point_mass():
+    est = entropy_with_delta_se(np.array([1000, 0, 0]))
+    assert np.isclose(est.delta_se, 0.0, atol=1e-9)
 
 
 def test_uniform_attains_log_support():

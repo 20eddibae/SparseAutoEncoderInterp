@@ -4,37 +4,38 @@
   "n_conversations": 9995,
   "n_turn_transitions": 35695,
   "pooled": {
-    "ck_residual": 1.616383968570705,
-    "spectral_gap": 0.39444423425950637,
-    "mixing_time": 4,
-    "entropy_rate": 2.9034345934614665,
-    "pi_entropy": 3.322838313574605,
+    "n_states": 32,
+    "ck_residual": 1.4354652071507825,
+    "mixing_time": 2,
+    "tv_after_10": 1.2166883560339563e-05,
+    "entropy_rate": 2.6040396782668185,
+    "pi_entropy": 2.753644484574446,
     "pi_entropy_max": 3.4657359027997265
   },
   "role_coupled": {
-    "ck_residual_coupled": 1.2311891643246886,
-    "ck_residual_pooled": 1.616383968570705,
-    "ck_improvement": 0.3851948042460165,
-    "kernel_l2_difference": 2.3497741294442465,
-    "human_surprise": 3.0684446374592453,
-    "ai_self_surprise": 2.3935126196157013,
-    "surprise_gap": 0.6749320178435441
+    "ck_residual_coupled": 1.1535289724625988,
+    "ck_residual_pooled": 1.4354652071507825,
+    "ck_improvement": 0.28193623468818374,
+    "kernel_l2_difference": 1.8463390022478796,
+    "human_surprise": 2.942833084414539,
+    "ai_self_surprise": 2.1799325413417137,
+    "surprise_gap": 0.7629005430728255
   },
   "mcmc": {
     "mh_steps": 200000,
-    "mh_acceptance_rate": 0.71313,
-    "mh_tv_to_pi_final": 0.004903768895436857
+    "mh_acceptance_rate": 0.39395,
+    "mh_tv_to_pi_final": 0.012423634839076835
   },
   "generative_check": {
     "n_synthetic_conversations": 9995,
-    "surprise_gap_real": 0.6749320178435441,
-    "surprise_gap_synthetic": 0.6680686069189656,
-    "tv_mode_distribution_real_vs_synthetic": 0.010467448126899384,
-    "mean_dwell_real": 1.0701737949126342,
-    "mean_dwell_synthetic": 1.0730368702504924,
+    "surprise_gap_real": 0.7629005430728255,
+    "surprise_gap_synthetic": 0.7510104058431599,
+    "tv_mode_distribution_real_vs_synthetic": 0.006215773441115992,
+    "mean_dwell_real": 1.1599979689245457,
+    "mean_dwell_synthetic": 1.1599898580121704,
     "max_dwell_real": 12,
-    "max_dwell_synthetic": 6,
-    "mean_distinct_modes_real": 3.1816908454227115,
-    "mean_distinct_modes_synthetic": 3.8513256628314156
+    "max_dwell_synthetic": 7,
+    "mean_distinct_modes_real": 2.9759879939969984,
+    "mean_distinct_modes_synthetic": 3.3949974987493747
   }
 }

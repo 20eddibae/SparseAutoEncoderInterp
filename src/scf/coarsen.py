@@ -1,19 +1,29 @@
 """
-State-space coarsening for the conversation Markov chain.
+State-space definition for the conversation Markov chain (Experiment 4).
 
-The raw state is a binary vector in {0,1}^F with F = 4096. We cannot estimate
-a transition kernel on 2^F states from any realistic corpus. Two coarsenings:
+The raw per-turn object is a magnitude vector in R^F (F = 4096). A Markov chain
+on the full vector is impossible, so we need a *state* that is (a) a deterministic
+function of the activation vector and (b) a course-native probability object.
 
-1. Top-k. State = sorted tuple of the k most-active feature indices in the
-   turn (k small, e.g. 3–5). This collapses the chain to a chain on
-   at-most C(F, k) ordered subsets — still huge, but in practice the realized
-   support is small (a few thousand at most).
+We use the **argmax (dominant) feature**: the single most-active feature of the
+turn. This is the maximum of F random variables — an order statistic (course
+items 18-19, Apr 16) — not the output of any clustering/optimization step. There
+is no KMeans and no fragile K hyperparameter here.
 
-2. Co-activation cluster. Cluster features into G groups by k-means on the
-   feature-feature co-occurrence matrix; map each turn to its dominant group.
-   This gives a chain on exactly G states (e.g. G = 50).
+Two practical refinements, both justified inside the course:
 
-Both return integer state ids and a reversible id <-> label mapping.
+  1. Drop always-on features. A feature that fires on every turn has firing
+     probability 1, so it carries zero information (its indicator is a.s.
+     constant) and would otherwise win every argmax. We detect these by their
+     empirical firing rate == 1 and exclude them from the argmax.
+
+  2. Pool the rare tail. The argmax realises ~100 distinct features, but a long
+     tail of them are the dominant feature only a handful of times — too few to
+     estimate an outgoing transition row, and they create absorbing traps that
+     break ergodicity. We keep the M-1 most frequent dominant features as named
+     states and pool the rest into a single 'other' state. M is a *reporting
+     granularity* (like a histogram bin count), not a clustering hyperparameter;
+     the headline comparisons are stable across M (see RESULTS.md).
 """
 from __future__ import annotations
 from dataclasses import dataclass
@@ -25,7 +35,7 @@ import numpy as np
 @dataclass
 class StateSpace:
     method: str
-    id_to_label: list           # state id -> serialisable label (tuple of ints or int)
+    id_to_label: list           # state id -> serialisable label (feature index, or "other")
     label_to_id: dict
     extra: dict                 # method-specific bookkeeping
 
@@ -34,101 +44,80 @@ class StateSpace:
         return len(self.id_to_label)
 
 
-# ---------------------------------------------------------------- top-k
+# ---------------------------------------------------------------- helpers
 
 
-def topk_state(magnitudes: np.ndarray, k: int) -> tuple[int, ...]:
-    """Return the sorted indices of the k largest entries of `magnitudes`."""
-    if k <= 0:
-        raise ValueError("k must be positive")
-    if magnitudes.ndim != 1:
-        raise ValueError("magnitudes must be 1-D")
-    idx = np.argpartition(-magnitudes, kth=min(k, magnitudes.size - 1))[:k]
-    return tuple(sorted(int(i) for i in idx if magnitudes[i] > 0))
+def always_on_features(support: np.ndarray) -> np.ndarray:
+    """Indices of features that fire on every turn (firing rate == 1).
 
-
-def build_topk_space(
-    per_turn_magnitudes: Sequence[np.ndarray], k: int
-) -> Tuple[StateSpace, List[int]]:
-    """Walk the corpus once, assign each turn a state id."""
-    label_to_id: dict[tuple, int] = {}
-    id_to_label: list[tuple] = []
-    state_ids: list[int] = []
-    for mags in per_turn_magnitudes:
-        lbl = topk_state(mags, k)
-        sid = label_to_id.get(lbl)
-        if sid is None:
-            sid = len(id_to_label)
-            label_to_id[lbl] = sid
-            id_to_label.append(lbl)
-        state_ids.append(sid)
-    return (
-        StateSpace(method="topk", id_to_label=id_to_label, label_to_id=label_to_id, extra={"k": k}),
-        state_ids,
-    )
-
-
-# ---------------------------------------------------------------- cluster
-
-
-def build_cluster_space(
-    per_turn_magnitudes: Sequence[np.ndarray],
-    n_clusters: int,
-    rng_seed: int = 0,
-    max_iter: int = 50,
-) -> Tuple[StateSpace, List[int]]:
+    Such a feature's indicator is almost-surely constant -> zero information,
+    so it is excluded from the argmax (otherwise it dominates every turn).
     """
-    K-means on the feature-feature co-activation matrix, mapping each feature
-    to a group. A turn's state is then the group of its argmax feature.
+    rate = np.asarray(support, dtype=np.float64).mean(axis=0)
+    return np.where(rate >= 1.0)[0]
+
+
+def dominant_feature(magnitudes: np.ndarray, exclude: Sequence[int] = ()) -> np.ndarray:
+    """argmax feature per turn (an order statistic), excluding `exclude` features.
+
+    magnitudes: (N, F).  Returns (N,) feature indices.
     """
-    X = np.stack([m for m in per_turn_magnitudes], axis=0)   # (N, F)
-    binary = (X > 0).astype(np.float32)
-    co = binary.T @ binary                                   # (F, F)
-    co /= np.maximum(np.diag(co)[:, None], 1.0)              # normalised co-act
+    M = np.asarray(magnitudes, dtype=np.float32).copy()
+    if len(exclude):
+        M[:, np.asarray(exclude, dtype=int)] = -np.inf
+    return M.argmax(axis=1)
 
-    centers, assignments = _kmeans(co, n_clusters, rng_seed=rng_seed, max_iter=max_iter)
 
-    state_ids: list[int] = []
-    for mags in per_turn_magnitudes:
-        if mags.max() == 0:
-            state_ids.append(int(assignments[0]))            # degenerate empty turn
-            continue
-        top_feat = int(np.argmax(mags))
-        state_ids.append(int(assignments[top_feat]))
+# ---------------------------------------------------------------- argmax space
 
-    id_to_label = list(range(n_clusters))
-    label_to_id = {i: i for i in id_to_label}
+
+def build_argmax_space(
+    magnitudes: np.ndarray,
+    support: np.ndarray | None = None,
+    n_states: int = 32,
+    exclude: Sequence[int] | None = None,
+) -> Tuple[StateSpace, np.ndarray]:
+    """Define states as the dominant (argmax) feature, top-(n_states-1) named +
+    one pooled 'other'.
+
+    Parameters
+    ----------
+    magnitudes : (N, F) per-turn SAE magnitudes.
+    support    : (N, F) 0/1; used to auto-detect always-on features when
+                 `exclude` is None. If both are None, nothing is excluded.
+    n_states   : reporting granularity M. n_states-1 named feature-states + 'other'.
+    exclude    : feature indices to drop from the argmax. Defaults to the
+                 always-on features detected from `support`.
+
+    Returns (StateSpace, state_ids[(N,)]).
+    """
+    if exclude is None:
+        exclude = always_on_features(support) if support is not None else np.array([], dtype=int)
+    exclude = np.asarray(exclude, dtype=int)
+
+    feat = dominant_feature(magnitudes, exclude)
+    vals, counts = np.unique(feat, return_counts=True)
+    keep = vals[np.argsort(-counts)[: max(n_states - 1, 1)]]      # M-1 named states
+    remap = {int(f): i for i, f in enumerate(keep)}
+    other_id = len(keep)                                          # pooled tail
+
+    id_to_label: list = [int(f) for f in keep] + ["other"]
+    label_to_id = {lbl: i for i, lbl in enumerate(id_to_label)}
+    state_ids = np.array([remap.get(int(f), other_id) for f in feat], dtype=int)
+
+    coverage = float(counts[np.argsort(-counts)[: max(n_states - 1, 1)]].sum() / counts.sum())
     return (
         StateSpace(
-            method="cluster",
+            method="argmax",
             id_to_label=id_to_label,
             label_to_id=label_to_id,
-            extra={"n_clusters": n_clusters, "feature_to_cluster": assignments.tolist()},
+            extra={
+                "n_states": len(id_to_label),
+                "excluded_features": exclude.tolist(),
+                "named_features": [int(f) for f in keep],
+                "named_coverage": coverage,
+                "n_realised_argmax": int(vals.size),
+            },
         ),
         state_ids,
     )
-
-
-def _kmeans(
-    X: np.ndarray, k: int, rng_seed: int = 0, max_iter: int = 50, tol: float = 1e-4
-) -> tuple[np.ndarray, np.ndarray]:
-    """Tiny numpy k-means. Not a substitute for scikit, but adequate here."""
-    rng = np.random.default_rng(rng_seed)
-    n = X.shape[0]
-    init_idx = rng.choice(n, size=k, replace=False)
-    centers = X[init_idx].copy()
-    for _ in range(max_iter):
-        d = ((X[:, None, :] - centers[None, :, :]) ** 2).sum(axis=2)   # (n, k)
-        assignments = np.argmin(d, axis=1)
-        new_centers = np.zeros_like(centers)
-        for j in range(k):
-            mask = assignments == j
-            if mask.any():
-                new_centers[j] = X[mask].mean(axis=0)
-            else:
-                new_centers[j] = X[rng.integers(0, n)]
-        shift = np.linalg.norm(new_centers - centers)
-        centers = new_centers
-        if shift < tol:
-            break
-    return centers, assignments

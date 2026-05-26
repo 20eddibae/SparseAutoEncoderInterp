@@ -216,3 +216,51 @@ features co-fire); `entropy`,`bayes` (H2 — roles have ~equal marginal entropy,
 separability is about *which* features fire). Remaining: token-level FSA
 (per-token extraction, GPU), and CPU-only `order_stats` / LLR proxy /
 logit-weight MGF. See the RESULTS.md scoping table.
+
+## 2026-05-26 — Simplification to keep everything inside the course vocabulary
+
+We restructured the project so the *methods* live entirely inside the course's
+probability vocabulary (the full topic list now lives in `CLAUDE.md`, and every
+experiment maps to ≤2 topics; no new probability concepts are introduced). The
+work is now **four experiments + one kept generative result**, each independently
+defensible:
+
+1. **Is L0 Poisson?** (tail-sum · Poisson-as-limit-of-Binomial · Markov/Chebyshev)
+2. **Does the L0 sample mean concentrate?** (WLLN · CLT)
+3. **Are the roles different distributions?** (entropy + delta-method error bar ·
+   KL · Jensen)
+4. **Conversation-mode dynamics** (Markov chain: CK · stationary π + geometric TV
+   decay / mixing), plus the kept **role-coupled chain + generative MCMC** (H5/H6).
+
+**The big change: KMeans is gone.** The conversation-chain state is now the
+**dominant (argmax) SAE feature per turn** — an order statistic (course items
+18–19), a deterministic function of the activation vector, *not* a clustering
+output. This removes the only out-of-course step (KMeans is optimisation, not
+probability) and the fragile `K=32` hyperparameter. Two course-justified
+refinements keep it well-posed: (a) the always-on DC feature 2684 has firing
+probability 1 (zero information) and is excluded from the argmax; (b) the M−1 most
+frequent dominant features are named states and the rare tail is pooled into one
+`other` state, where M is a *reporting granularity* (like a histogram bin count),
+not a tuned hyperparameter — the headline is robust across M ∈ {16,32,48}.
+
+**The headline survived and got cleaner.** With argmax states (M=32) the human−AI
+surprise gap is **+0.53 / +0.76 nats** (ShareGPT / WildChat) — directionally
+identical to, and a bit larger than, the old KMeans +0.50 / +0.68, and now a
+property of a deterministic, course-native state. The role-coupled chain cuts the
+CK residual ~0.3 and the generative MCMC inherits the gap (+0.52 / +0.75). The
+delta-method error bar on Experiment 3 is tight enough to *resolve* the role
+entropy difference (AI is slightly but significantly *higher*-entropy, −0.049 ±
+0.0004) — sharper than the old "roughly equal under a loose Chebyshev bar."
+
+**Dropped to stay in scope** (each replaced or shelved, not lost): the MGF
+Gaussianity fit for L0 (the Poisson rejection already does that work); the
+spectral-gap framing (replaced by "TV distance to π decays geometrically" — same
+fact, course-native); the topic-conditional stationary test (old H4); and from the
+forward plan the importance-sampling / Gibbs-measure gestures, the token-level FSA
+(needs GPU per-token extraction), and the logit-weight bimodality (a different
+model layer). The Bayes posterior is folded into Experiment 3 as one line. Kept as
+designed: the two corpora, the tail-sum sanity check, and the synthetic-corpus
+control (role AUC 0.56) framed as the proper null. `mgf.py` remains in the toolbox
+for reference (CLT's proof uses MGF uniqueness) but is no longer a headline test.
+
+Final figures: `results/figures/01–06*.png`. Final numbers: `RESULTS.md`.

@@ -1,17 +1,23 @@
 """
-Plug-in entropy estimator with a Chebyshev-style error bound.
+Plug-in entropy with a delta-method error bar (Experiment 3).
 
-H(p) = -sum_i p_i log p_i. Given iid samples x_1,...,x_N from p, the plug-in
-estimator is H_hat = -sum_i p_hat_i log p_hat_i where p_hat_i = n_i / N.
+H(p) = E[-log p(X)] = -sum_i p_i log p_i. Given iid samples x_1,...,x_N from p,
+the plug-in estimator is H_hat = -sum_i p_hat_i log p_hat_i, p_hat_i = n_i / N.
+Writing it as a sample mean of g(X) = -log p(X) lets the **delta method**
+(course item 35: Taylor expansion + Var of a sample mean) give its standard
+error directly:
 
-Variance bound (Antos-Kontoyiannis 2001-style, simplified):
-    Var(H_hat) <= (log N)^2 / N.
-Chebyshev then gives
-    P(|H_hat - H| >= eps) <= (log N)^2 / (N eps^2).
-We use this to attach a 1-sigma error bar in `entropy_with_chebyshev_bound`.
+    Var(H_hat) ~= (1/N) Var_p[ -log p(X) ]
+                = (1/N) ( sum_i p_i (log p_i)^2 - (sum_i p_i log p_i)^2 ).
 
-Jensen's inequality is used implicitly: H(p) <= log(support size); we expose
-that comparison so the project can plot the slack.
+This is the headline error bar used in `entropy_with_delta_se`. The older
+Chebyshev (log N)^2/N half-width is kept in `entropy_with_chebyshev_bound` for
+reference only.
+
+Jensen's inequality (item 28) underlies two facts we use: H(p) <= log(support)
+(uniform attains it), and KL(p||q) >= 0 -- the latter is why a nonzero KL between
+the two role distributions is meaningful. We expose the log-support slack so the
+project can plot it.
 """
 from __future__ import annotations
 from dataclasses import dataclass
@@ -26,8 +32,42 @@ class EntropyEstimate:
     n_samples: int
     support_size: int
     log_support_bound: float        # Jensen upper bound (uniform attains it)
-    chebyshev_eps: float            # half-width such that Pr(|H_hat-H|>=eps) <= delta
+    delta_se: float                 # delta-method standard error of H_hat
+    chebyshev_eps: float            # reference Chebyshev half-width (delta=0.05)
     delta: float
+
+
+def entropy_with_delta_se(
+    counts: Sequence[int] | np.ndarray, base: float = np.e
+) -> EntropyEstimate:
+    """Plug-in entropy + delta-method standard error (1 sigma).
+
+    se(H_hat) = sqrt( (Var_p[-log p] ) / N ),  Var_p[-log p] computed under p_hat.
+    Also fills the reference Chebyshev half-width for comparison.
+    """
+    c = np.asarray(counts, dtype=np.float64)
+    N = int(c.sum())
+    H_hat = plug_in_entropy(c, base=base)
+    support = int((c > 0).sum())
+    if N <= 1:
+        se = float("inf")
+    else:
+        p = c[c > 0] / N
+        lg = np.log(p)
+        var_g = float(np.sum(p * lg * lg) - np.sum(p * lg) ** 2)   # Var_p[-log p]
+        se = float(np.sqrt(max(var_g, 0.0) / N))
+        if base != np.e:
+            se /= np.log(base)
+    ref = entropy_with_chebyshev_bound(c, base=base)
+    return EntropyEstimate(
+        H_hat=H_hat,
+        n_samples=N,
+        support_size=support,
+        log_support_bound=float(np.log(max(support, 1)) / np.log(base)),
+        delta_se=se,
+        chebyshev_eps=ref.chebyshev_eps,
+        delta=ref.delta,
+    )
 
 
 def plug_in_entropy(counts: Sequence[int] | np.ndarray, base: float = np.e) -> float:
@@ -65,6 +105,7 @@ def entropy_with_chebyshev_bound(
         n_samples=N,
         support_size=support,
         log_support_bound=float(np.log(max(support, 1)) / np.log(base)),
+        delta_se=float("nan"),
         chebyshev_eps=eps,
         delta=delta,
     )

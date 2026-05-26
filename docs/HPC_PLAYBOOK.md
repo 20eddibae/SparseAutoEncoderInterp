@@ -70,18 +70,21 @@ wget https://huggingface.co/datasets/anon8231489123/ShareGPT_Vicuna_unfiltered/r
 ```
 To switch to synthetic self-play instead, set `corpus.name: synthetic` in the config.
 
-## Hypothesis tests (CPU, fast)
-Run from a login node or a small interactive job:
+## Experiments (CPU, fast)
+Easiest: `sbatch slurm/09_experiments.sbatch` regenerates every result + figure
+for both corpora. By hand from a login node or a small interactive job:
 ```bash
-srun --account=rc --partition=standard --cpus-per-task=2 --mem=8G --time=30:00 --pty /bin/bash
+srun --account=lsonglab --partition=standard --cpus-per-task=8 --mem=24G --time=40:00 --pty /bin/bash
 source activate scf-env
-cd $HOME/stochastic-conversation-features
-for h in 1 2 3 4; do
-  python scripts/run_hypothesis.py --h $h \
+cd $HOME/SparseAutoEncoderInterp
+for e in 1 2 3; do                      # Exp 1 Poisson, 2 WLLN/CLT, 3 roles
+  python scripts/run_hypothesis.py --exp $e \
       --config configs/discovery.yaml \
-      --features artifacts/features.npz \
-      --out artifacts/h${h}.json
+      --features artifacts/features_stripped.npz \
+      --out results/data/exp${e}_stripped.json
 done
+python scripts/mcmc_conversations.py --features artifacts/features_stripped.npz --k 32   # Exp 4 + MCMC
+python scripts/make_plots.py
 ```
 
 ## Compute totals (default settings)

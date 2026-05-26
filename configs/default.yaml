@@ -24,9 +24,8 @@ turn_pooling: max
 
 # State-space coarsening for Markov chain
 coarsen:
-  method: topk       # "topk" or "cluster"
-  k: 5               # top-k active features per turn become the state (sorted tuple)
-  n_clusters: 50     # used only when method == "cluster"
+  method: argmax       # state = dominant (argmax) SAE feature per turn (order statistic, no KMeans)
+  n_states: 32         # reporting granularity M: M-1 named feature-states + one pooled 'other'
 
 # Inference / extraction
 device: cpu          # set to cuda when running on HPC

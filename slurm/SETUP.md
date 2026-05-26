@@ -69,13 +69,16 @@ ls $HOME/sparse-dictionary-learning/autoencoder/out/openwebtext/
 ```
 The pre-submitted feature-extraction job (step 5) will use it.
 
-## 7. Hypothesis tests
-These are CPU-only and fast. Run interactively or in a tiny job:
+## 7. Experiments
+These are CPU-only and fast. `sbatch slurm/09_experiments.sbatch` runs the whole
+pipeline (both corpora + figures + tests). By hand:
 ```bash
-for h in 1 2 3 4; do
-  python scripts/run_hypothesis.py --h $h \
+for e in 1 2 3; do                      # Exp 1 Poisson, 2 WLLN/CLT, 3 roles
+  python scripts/run_hypothesis.py --exp $e \
       --config configs/discovery.yaml \
-      --features artifacts/features.npz \
-      --out artifacts/h${h}.json
+      --features artifacts/features_stripped.npz \
+      --out results/data/exp${e}_stripped.json
 done
+python scripts/mcmc_conversations.py --features artifacts/features_stripped.npz --k 32   # Exp 4 + MCMC
+python scripts/make_plots.py
 ```

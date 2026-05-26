@@ -1,5 +1,18 @@
 # Brainstorm — exploring the transformer + SAE through the probability toolkit
 
+> **Status (2026-05-26): historical exploration.** The project has since been
+> simplified to **four experiments + one kept generative result**, all inside the
+> course probability vocabulary (`CLAUDE.md`); see `RESULTS.md` / `RESEARCH.md`.
+> What survived from the ideas below: the Poisson over-dispersion test (Exp 1), the
+> WLLN/CLT block-mean check (Exp 2), role entropy + KL (Exp 3, now with a
+> delta-method bar), and the turn-level Markov chain (Exp 4) — but with the **state
+> redefined as the argmax (dominant) feature, an order statistic, not a clustering
+> output (no KMeans, no K)**. What was dropped to stay in scope: the MGF Gaussianity
+> fit, the Naive-Bayes-vs-logreg gap, the independence-surrogate counterfactual, the
+> PCA/L²-projection idea, and the spectral framing — none are needed for the four
+> experiments. The HTML-artifact triangulation (items 1–3 at the bottom) was already
+> resolved (see `RESEARCH.md`, 2026-05-25): the genuine role AUC is ~0.92.
+
 The SAE features are themselves a probability object: per turn we have a 4096-dim
 sparse vector (`magnitudes` continuous + `support` binary) with `role`, `conv_id`,
 and `turn_idx`. ~72–80 features active/turn (~1.8% density), 1568–1817 dead

@@ -3,13 +3,13 @@
 Conversation-level (turn) Markov chain over SAE features. CPU-only, runs on the
 already-extracted per-turn features (no GPU, no re-extraction).
 
-This is "Chain 2" from the research plan: states are conversation modes (clusters
-of per-turn SAE activation patterns), time steps are TURNS within a conversation.
-We ask the probability questions from RESEARCH.md:
+This is "Chain 2" from the research plan: each turn's state is its dominant
+(argmax) SAE feature -- an order statistic, no clustering -- and time steps are
+TURNS within a conversation. We ask the probability questions from RESEARCH.md:
 
   - Markov fit + Chapman-Kolmogorov residual  (markov.py)            [Markov]
   - stationary distribution pi and whether the chain CONVERGES to it [Markov]
-  - mixing time / spectral gap  (how fast a conversation forgets its start)
+  - geometric TV-decay to pi / mixing time (how fast a conv forgets its start)
   - entropy rate h = -sum_i pi_i sum_j P_ij log P_ij                 [entropy]
   - per-state conditional entropy H(P_i.)  -> deterministic vs open states
   - role asymmetry: "human surprise" vs "AI self-surprise"
@@ -28,16 +28,17 @@ sys.path.insert(0, os.path.join(HERE, "..", "src"))
 from scf.probability.markov import (
     estimate_transition, chapman_kolmogorov_test, stationary_distribution, mixing_time,
 )
+from scf.coarsen import build_argmax_space
 
 
-def cluster_states(mag, k, seed=0):
-    """Option 3: cluster L2-normalized per-turn activation vectors into k modes."""
-    from sklearn.cluster import MiniBatchKMeans
-    from sklearn.preprocessing import normalize
-    X = normalize(mag.astype(np.float32))            # cluster by pattern, not scale
-    km = MiniBatchKMeans(n_clusters=k, random_state=seed, batch_size=4096,
-                         n_init=3, max_iter=100)
-    return km.fit_predict(X)
+def argmax_states(mag, support, k):
+    """State = dominant (argmax) feature per turn -- an order statistic (course
+    items 18-19), a deterministic function of the activation vector, NOT a
+    clustering output. Always-on features (firing rate 1, zero information) are
+    excluded; the k-1 most frequent dominant features are named states and the
+    rare tail is pooled into 'other'. Returns (state_ids, n_states)."""
+    space, ids = build_argmax_space(mag, support=support, n_states=k)
+    return ids, space.n_states
 
 
 def trajectories_by_conv(states, conv, turn):
@@ -89,27 +90,30 @@ def main():
 
     f = np.load(args.features)
     mag = f["magnitudes"]; conv = f["conv_id"]; turn = f["turn_idx"]; role = f["role"].astype(int)
+    support = f["support"]
     print(f"[load] {args.features}: {mag.shape[0]} turns, {mag.shape[1]} feats, k={args.k}")
 
-    states = cluster_states(mag, args.k, args.seed)
+    states, k = argmax_states(mag, support, args.k)
     trajs = trajectories_by_conv(states, conv, turn)
     n_steps = sum(len(t) - 1 for t in trajs)
-    print(f"[chain] {len(trajs)} conversations, {n_steps} turn-transitions")
+    print(f"[chain] {len(trajs)} conversations, {n_steps} turn-transitions, {k} argmax states")
 
-    fit = estimate_transition(trajs, args.k)
+    fit = estimate_transition(trajs, k)
     P, pi = fit.P_hat, fit.pi_hat
 
     # --- convergence to stationary distribution ---
     ck = chapman_kolmogorov_test(fit)
     tmix = mixing_time(P, pi, epsilon=0.25)
-    eig = np.sort(np.abs(np.linalg.eigvals(P)))[::-1]
-    gap = 1.0 - eig[1]
-    # power-iterate from a point mass to watch TV(.,pi) decay
-    v = np.zeros(args.k); v[int(np.argmax(pi))] = 1.0
+    # power-iterate from a point mass to watch TV(.,pi) decay GEOMETRICALLY
+    v = np.zeros(k); v[int(np.argmax(pi))] = 1.0
     tv = []
     for _ in range(40):
         v = v @ P
         tv.append(0.5 * np.abs(v - pi).sum())
+    # geometric decay rate of TV (slope of log TV per step)
+    tv_arr = np.array(tv)
+    valid = tv_arr > 1e-9
+    decay_rate = float(np.exp(np.diff(np.log(tv_arr[valid])).mean())) if valid.sum() > 1 else float("nan")
 
     # --- entropy rate + per-state conditional entropy ---
     Hrows = cond_entropy_rows(P)
@@ -118,27 +122,27 @@ def main():
     order = np.argsort(pi)[::-1]
 
     # --- role asymmetry: human surprise vs AI self-surprise ---
-    h_surprise, n_ah = role_transition_entropy(states, conv, turn, role, args.k, src_role=1)
-    ai_surprise, n_ha = role_transition_entropy(states, conv, turn, role, args.k, src_role=0)
+    h_surprise, n_ah = role_transition_entropy(states, conv, turn, role, k, src_role=1)
+    ai_surprise, n_ha = role_transition_entropy(states, conv, turn, role, k, src_role=0)
 
-    print("\n=== Markov fit (turn-level conversation chain) ===")
+    print("\n=== Markov fit (turn-level conversation chain, argmax states) ===")
     print(f"  Chapman-Kolmogorov residual (Frobenius) = {ck.residual_frobenius:.4f}  "
           f"(0 = perfectly 1st-order Markov)")
-    print(f"  spectral gap 1-|lambda2| = {gap:.4f}   |lambda2| = {eig[1]:.4f}")
+    print(f"  geometric TV-decay rate per step = {decay_rate:.4f}  (<1 => TV->0)")
     print(f"  mixing time (TV<=0.25)   = {tmix} turns")
     print(f"  TV(start->pi) after 1/2/5/10 turns = "
           f"{tv[0]:.3f} / {tv[1]:.3f} / {tv[4]:.3f} / {tv[9]:.3f}")
     converged = tv[-1] < 1e-3
     print(f"  -> converges to a unique stationary distribution: {converged}")
 
-    print("\n=== stationary distribution pi (does the conversation settle on a mode?) ===")
-    print(f"  entropy of pi = {pi_entropy:.3f} nats  (max = {np.log(args.k):.3f}; "
-          f"low => collapses onto few modes)")
-    print(f"  top-5 modes (state: pi): " +
+    print("\n=== stationary distribution pi (does the conversation settle on a state?) ===")
+    print(f"  entropy of pi = {pi_entropy:.3f} nats  (max = {np.log(k):.3f}; "
+          f"low => collapses onto few states)")
+    print(f"  top-5 states (state: pi): " +
           ", ".join(f"{int(s)}:{pi[s]:.3f}" for s in order[:5]))
 
     print("\n=== entropy rate & per-state predictability ===")
-    print(f"  entropy rate h = {h_rate:.3f} nats/turn  (max = {np.log(args.k):.3f})")
+    print(f"  entropy rate h = {h_rate:.3f} nats/turn  (max = {np.log(k):.3f})")
     det = np.argsort(Hrows)[:3]; opn = np.argsort(Hrows)[::-1][:3]
     print(f"  most DETERMINISTIC modes (low H): " +
           ", ".join(f"{int(s)}:{Hrows[s]:.2f}" for s in det))

@@ -1,10 +1,17 @@
 #!/usr/bin/env python3
 """
-Run one of the four hypothesis tests on an extracted features file.
+Run one of the CPU-only experiments on an extracted features file.
+
+  --exp 1   Is L0 Poisson?              (tail-sum, Poisson-as-limit, Markov/Chebyshev)
+  --exp 2   Does the sample mean concentrate?  (WLLN + CLT)
+  --exp 3   Are the roles different distributions?  (entropy + delta method + KL/Jensen)
+
+Experiment 4 (the conversation-mode Markov chain) and the generative MCMC live in
+scripts/mcmc_conversations.py, because they emit large array artifacts.
 
 Usage:
-  python scripts/run_hypothesis.py --h 1 --features artifacts/features.npz \
-      [--config configs/default.yaml] [--out artifacts/h1.json]
+  python scripts/run_hypothesis.py --exp 1 --features artifacts/features_stripped.npz \
+      [--config configs/discovery.yaml] [--out results/data/exp1_stripped.json]
 """
 from __future__ import annotations
 import argparse
@@ -29,7 +36,7 @@ def _default_to_jsonable(obj):
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--h", type=int, required=True, choices=[1, 2, 3, 4])
+    ap.add_argument("--exp", type=int, required=True, choices=[1, 2, 3])
     ap.add_argument("--features", required=True)
     ap.add_argument("--config", default=default_config_path())
     ap.add_argument("--out", default=None)
@@ -37,14 +44,12 @@ def main() -> None:
 
     cfg = Config.from_yaml(args.config)
 
-    if args.h == 1:
-        from scf.hypotheses.h1_markovianity import run
-    elif args.h == 2:
-        from scf.hypotheses.h2_human_vs_ai import run
-    elif args.h == 3:
-        from scf.hypotheses.h3_concentration import run
+    if args.exp == 1:
+        from scf.hypotheses.exp1_poisson import run
+    elif args.exp == 2:
+        from scf.hypotheses.exp2_clt import run
     else:
-        from scf.hypotheses.h4_stationarity import run
+        from scf.hypotheses.exp3_roles import run
 
     result = run(args.features, cfg)
     serialised = json.dumps(result, indent=2, default=_default_to_jsonable)

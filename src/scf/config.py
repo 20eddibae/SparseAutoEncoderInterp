@@ -8,9 +8,12 @@ import yaml
 
 @dataclass
 class CoarsenConfig:
-    method: str = "topk"
-    k: int = 5
-    n_clusters: int = 50
+    # Conversation-chain state = the dominant (argmax) SAE feature per turn (an
+    # order statistic, no clustering). `n_states` is the reporting granularity M:
+    # the M-1 most frequent dominant features are named states, the rare tail is
+    # pooled into one 'other' state. Always-on features are auto-excluded.
+    method: str = "argmax"
+    n_states: int = 32
 
 
 @dataclass

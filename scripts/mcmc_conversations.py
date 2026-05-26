@@ -5,8 +5,8 @@ already-extracted per-turn features). This extends the turn-level chain in
 `markov_chain.py` in two ways:
 
   1. ROLE-COUPLED kernels (H5/H6 from RESEARCH.md). Role strictly alternates, so
-     the pooled 1-step chain is not first-order (CK residual ~1.6). We estimate
-     two kernels separately --
+     the pooled 1-step chain is not perfectly first-order. We estimate two kernels
+     separately --
 
          T_{h->a}  : human-turn mode -> next ai-turn mode   ("AI self-surprise")
          T_{a->h}  : ai-turn mode    -> next human-turn mode ("human surprise")
@@ -44,18 +44,19 @@ sys.path.insert(0, os.path.join(HERE, "..", "src"))
 from scf.probability.markov import (
     estimate_transition, chapman_kolmogorov_test, stationary_distribution, mixing_time,
 )
+from scf.coarsen import build_argmax_space
 
 
 # --------------------------------------------------------------------------- #
-#  clustering + trajectory helpers (shared with markov_chain.py)
+#  state definition + trajectory helpers (shared with markov_chain.py)
 # --------------------------------------------------------------------------- #
-def cluster_states(mag, k, seed=0):
-    from sklearn.cluster import MiniBatchKMeans
-    from sklearn.preprocessing import normalize
-    X = normalize(mag.astype(np.float32))
-    km = MiniBatchKMeans(n_clusters=k, random_state=seed, batch_size=4096,
-                         n_init=3, max_iter=100)
-    return km.fit_predict(X)
+def argmax_states(mag, support, k):
+    """State = dominant (argmax) feature per turn -- an order statistic, no KMeans.
+    Always-on features (firing rate 1, zero information) are excluded; the k-1
+    most frequent dominant features are named states and the rare tail is pooled
+    into 'other'. Returns (state_ids[(N,)], n_states)."""
+    space, ids = build_argmax_space(mag, support=support, n_states=k)
+    return ids, space.n_states
 
 
 def ordered_indices(conv, turn):
@@ -230,21 +231,21 @@ def analyze(features, k, seed):
     f = np.load(features)
     mag, conv, turn = f["magnitudes"], f["conv_id"], f["turn_idx"]
     role = f["role"].astype(int)
+    support = f["support"]
     print(f"[load] {features}: {mag.shape[0]} turns, {mag.shape[1]} feats, k={k}")
 
-    states = cluster_states(mag, k, seed)
+    states, k = argmax_states(mag, support, k)
     plain = trajectories(states, conv, turn)
     rtrajs = trajectories(states, conv, turn, role=role)
     n_steps = sum(len(t) - 1 for t in plain)
-    print(f"[chain] {len(plain)} conversations, {n_steps} turn-transitions")
+    print(f"[chain] {len(plain)} conversations, {n_steps} turn-transitions, "
+          f"{k} argmax states")
 
     # pooled chain (reproduces markov_chain.py)
     fit = estimate_transition(plain, k)
     P, pi = fit.P_hat, fit.pi_hat
     ck_pooled = chapman_kolmogorov_test(fit).residual_frobenius
     tmix = mixing_time(P, pi, 0.25)
-    eig = np.sort(np.abs(np.linalg.eigvals(P)))[::-1]
-    gap = float(1.0 - eig[1])
     h_rate = float((pi * cond_entropy_rows(P)).sum())
     pi_entropy = float(-(pi[pi > 0] * np.log(pi[pi > 0])).sum())
     # TV(start->pi) decay from the modal state
@@ -281,7 +282,9 @@ def analyze(features, k, seed):
         "features": os.path.basename(features), "k": k,
         "n_conversations": len(plain), "n_turn_transitions": int(n_steps),
         "pooled": {
-            "ck_residual": ck_pooled, "spectral_gap": gap, "mixing_time": int(tmix),
+            "n_states": int(k),
+            "ck_residual": ck_pooled, "mixing_time": int(tmix),
+            "tv_after_10": float(tv_power[9]) if len(tv_power) > 9 else None,
             "entropy_rate": h_rate, "pi_entropy": pi_entropy, "pi_entropy_max": float(np.log(k)),
         },
         "role_coupled": {

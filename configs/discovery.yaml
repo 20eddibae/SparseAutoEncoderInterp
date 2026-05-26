@@ -14,9 +14,8 @@ activation_threshold: 0.0
 turn_pooling: max
 
 coarsen:
-  method: topk
-  k: 5
-  n_clusters: 50
+  method: argmax       # state = dominant (argmax) SAE feature per turn (order statistic, no KMeans)
+  n_states: 32         # reporting granularity M: M-1 named feature-states + one pooled 'other'
 
 device: cuda
 batch_size: 32
