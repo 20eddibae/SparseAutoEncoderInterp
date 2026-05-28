@@ -30,14 +30,15 @@ features firing per turn (a sum of 4096 Bernoulli indicators).
 | **Fano factor var/mean** (Poisson = 1) | **9.94** | **10.29** |
 | tail-sum `E[N]` vs direct mean | 77.6461580 vs 77.6461580 ✓ | 82.5155180 vs 82.5155180 ✓ |
 | λ̂ = Σ pᵢ | 77.65 | 82.52 |
-| Le Cam TV bound Σ pᵢ² | 53.2 | 59.6 |
+| Poisson-approx. correction Σ pᵢ² | 53.2 | 59.6 |
 | Poisson χ² p-value | 0.0 | 0.0 |
 
 - **Tail-sum identity** `E[N] = Σ_{k≥1} P(N≥k)` matches the direct sample mean to
   1e-9 on both corpora — a one-line numerical check of the April-7 theorem. ✓
 - **The Poisson null is rejected hard.** Under independent firing, `L0` would be
-  a Poisson-binomial sum → Poisson(λ) (the Binomial-limit theorem; Le Cam bounds
-  the error by Σpᵢ², here ≫1 so the approximation is formally void anyway). The
+  a sum of independent Bernoullis → Poisson(λ) (the Poisson-limit-of-the-Binomial,
+  course item 13). That limit needs small firing rates: its leading correction
+  Σpᵢ² ≈ 53–60 is itself ≫1, so the approximation was never going to hold. The
   empirical variance is ~10× the mean (Fano ≈ 10, Poisson = 1), so `L0` is
   strongly **over-dispersed** and χ² rejects at p = 0. **Interpretation:** features
   are **correlated / co-fire** (feature-splitting ⇒ groups activate together), so
@@ -109,7 +110,7 @@ is the row-normalised count matrix — the MLE is a sample mean, justified by WL
 |---|---:|---:|
 | conversations / turn-transitions | 10,000 / 60,133 | 9,995 / 35,695 |
 | states | 32 | 32 |
-| Chapman–Kolmogorov residual (Frobenius) | 1.312 | 1.435 |
+| Chapman–Kolmogorov residual (entrywise L2) | 1.312 | 1.435 |
 | mixing time (TV ≤ 0.25) | **4 turns** | **2 turns** |
 | TV(start→π) after 10 turns | 0.006 | ~0.000 |
 | **converges to a unique stationary π** | **yes** | **yes** |
@@ -154,7 +155,7 @@ role kernels separately — `T_{h→a}` (human-turn → next ai = AI self-surpri
 | pooled CK residual | 1.312 | 1.435 |
 | **role-coupled CK residual** `‖P2_emp − T_{h→a}T_{a→h}‖` | **0.971** | **1.154** |
 | CK improvement | **+0.341** | **+0.282** |
-| kernel difference `‖T_{h→a} − T_{a→h}‖_F` | 1.983 | 1.846 |
+| kernel difference (entrywise L2) `‖T_{h→a} − T_{a→h}‖` | 1.983 | 1.846 |
 | human surprise / AI self-surprise (nats) | 2.639 / 2.108 | 2.943 / 2.180 |
 | **surprise gap (human − AI)** | **+0.532** | **+0.763** |
 | Metropolis–Hastings acceptance | 0.419 | 0.394 |
@@ -167,11 +168,11 @@ role kernels separately — `T_{h→a}` (human-turn → next ai = AI self-surpri
   role drops the Chapman–Kolmogorov residual by ~0.3 (1.31→0.97 ShareGPT, 1.44→1.15
   WildChat): a chunk of the apparent non-Markovianity was just the period-2 role
   flip, recovered by the 2-step product `T_{h→a}T_{a→h}`. The two kernels are
-  genuinely different (`‖·‖_F` ≈ 1.8–2.0), i.e. **the dynamics are role-asymmetric**
+  genuinely different (entrywise L2 distance ≈ 1.8–2.0), i.e. **the dynamics are role-asymmetric**
   — the structural reason the human is the less-predictable side.
 - **Metropolis–Hastings reproduces π.** A textbook MH sampler (symmetric
   random-walk proposal, target = the analytic π, acceptance via π only) converges to
-  within **TV ≈ 0.012** of the eigen/power-iteration π after 200k steps — two
+  within **TV ≈ 0.012** of the fixed-point (πP = π) π after 200k steps — two
   independent routes to π agree. (Acceptance is ~0.4 rather than ~0.7 because the
   argmax-state π is more peaked than the old cluster π; it still converges.)
 - **Generative posterior-predictive check.** Forward-sampling whole synthetic

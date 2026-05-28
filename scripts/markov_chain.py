@@ -126,7 +126,7 @@ def main():
     ai_surprise, n_ha = role_transition_entropy(states, conv, turn, role, k, src_role=0)
 
     print("\n=== Markov fit (turn-level conversation chain, argmax states) ===")
-    print(f"  Chapman-Kolmogorov residual (Frobenius) = {ck.residual_frobenius:.4f}  "
+    print(f"  Chapman-Kolmogorov residual (entrywise L2) = {ck.residual_l2:.4f}  "
           f"(0 = perfectly 1st-order Markov)")
     print(f"  geometric TV-decay rate per step = {decay_rate:.4f}  (<1 => TV->0)")
     print(f"  mixing time (TV<=0.25)   = {tmix} turns")

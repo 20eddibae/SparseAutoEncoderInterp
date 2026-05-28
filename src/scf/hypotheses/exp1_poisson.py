@@ -7,10 +7,10 @@ The random variable is L0 = the number of SAE features firing on a turn
   * Tail-sum identity (items 5/8):  E[L0] = sum_{k>=1} P(L0 >= k).  One-line
     numerical check against the direct sample mean.
   * Poisson-as-limit-of-Binomial (items 13/14): under independent firing,
-    L0 ~ Poisson-binomial -> Poisson(lambda = sum_i p_i). We fit lambda, compare
-    the empirical PMF to Poisson via chi-squared, and report the Fano factor
-    var/mean (=1 for Poisson). Le Cam's TV bound sum p_i^2 quantifies the
-    Poisson-limit error.
+    L0 is a sum of independent Bernoullis -> Poisson(lambda = sum_i p_i). We fit
+    lambda, compare the empirical PMF to Poisson via chi-squared, and report the
+    Fano factor var/mean (=1 for Poisson). The correction term sum_i p_i^2 reports
+    how far the small-rate Poisson limit is from applying.
   * Markov & Chebyshev tail bounds (items 25/26): bound P(L0 - mu >= t) and
     compare to the empirical upper tail.
 
@@ -55,7 +55,7 @@ def run(npz_path: str, cfg: Config) -> dict[str, Any]:
         "expectation_tail_sum": e_tail,
         "expectation_direct": e_direct,
         "lambda_hat": poisson.lambda_hat,
-        "le_cam_tv_bound": poisson.le_cam_bound,
+        "poisson_approx_error": poisson.poisson_approx_error,
         "poisson_chi2_stat": poisson.chi2_stat,
         "poisson_chi2_pvalue": poisson.chi2_pvalue,
         "k_grid": poisson.k_grid.tolist(),

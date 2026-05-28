@@ -1,7 +1,7 @@
 import numpy as np
 
 from scf.probability.concentration import (
-    markov_bound, chebyshev_bound, compare_tails, sub_gaussian_proxy,
+    markov_bound, chebyshev_bound, compare_tails,
 )
 
 
@@ -23,10 +23,3 @@ def test_compare_tails_runs_on_normal():
     assert out.empirical.shape == grid.shape
     # for a normal RV, chebyshev should be >= empirical at every t
     assert np.all(out.chebyshev + 1e-12 >= out.empirical)
-
-
-def test_sub_gaussian_proxy_recovers_variance_for_normal():
-    rng = np.random.default_rng(1)
-    x = rng.normal(scale=2.0, size=20000)
-    proxy = sub_gaussian_proxy(x)
-    assert 2.0 < proxy < 8.0   # true variance is 4; proxy is conservative

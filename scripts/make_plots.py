@@ -117,7 +117,7 @@ def plot_exp1_poisson():
         "",
         "Poisson-as-limit-of-Binomial null",
         f"  λ̂ = Σ p_i        = {d['lambda_hat']:.1f}",
-        f"  Le Cam TV bound   = {d['le_cam_tv_bound']:.1f}   (>>1 -> void)",
+        f"  Σpᵢ² approx error = {d['poisson_approx_error']:.1f}   (>>1 → Poisson void)",
         f"  χ² p-value        = {d['poisson_chi2_pvalue']:.1e}   → rejected",
         "",
         "Tail-sum identity  E[N]=Σ_k P(N≥k)",

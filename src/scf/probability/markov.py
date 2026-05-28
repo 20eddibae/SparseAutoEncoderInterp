@@ -4,8 +4,9 @@ Discrete-time Markov chain estimation and tests.
 Given a list of integer trajectories (one per conversation), we estimate:
   - 1-step transition matrix P_hat (row-stochastic)
   - empirical 2-step matrix P2_emp (from t -> t+2 transitions)
-  - Chapman-Kolmogorov residual ||P_hat^2 - P2_emp||
-  - stationary distribution pi (left eigenvector of P_hat for eigenvalue 1)
+  - Chapman-Kolmogorov residual: the entrywise Euclidean distance
+    ||P_hat^2 - P2_emp|| between the two matrices
+  - stationary distribution pi (the fixed point pi P = pi, item 37)
   - mixing time (TV distance from pi)
   - chi-squared CK test
 
@@ -32,7 +33,7 @@ class MarkovFit:
 
 @dataclass
 class CKTest:
-    residual_frobenius: float
+    residual_l2: float          # entrywise Euclidean distance ||P_hat^2 - P2_emp||
     residual_max: float
     chi2_stat: float
     chi2_dof: int
@@ -59,7 +60,7 @@ def chapman_kolmogorov_test(fit: MarkovFit) -> CKTest:
     P2_emp = _row_stochastic(fit.counts_2step)
     P2_model = fit.P_hat @ fit.P_hat
     diff = P2_emp - P2_model
-    fro = float(np.linalg.norm(diff))
+    l2 = float(np.linalg.norm(diff))     # entrywise Euclidean distance
     mx = float(np.max(np.abs(diff)))
 
     # chi-squared on contingency-style discrepancy
@@ -74,11 +75,12 @@ def chapman_kolmogorov_test(fit: MarkovFit) -> CKTest:
         S = fit.n_states
         dof = max(int(mask.sum()) - S, 1)
         pval = float(1 - chi2.cdf(chi2_stat, df=dof))
-    return CKTest(fro, mx, chi2_stat, dof, pval)
+    return CKTest(l2, mx, chi2_stat, dof, pval)
 
 
 def stationary_distribution(P: np.ndarray, tol: float = 1e-10, max_iter: int = 10000) -> np.ndarray:
-    """Left eigenvector for eigenvalue 1, found by power iteration on P^T."""
+    """The stationary distribution pi solving pi P = pi (item 37), found by
+    iterating pi <- pi P to its fixed point (power iteration)."""
     S = P.shape[0]
     pi = np.full(S, 1.0 / S)
     for _ in range(max_iter):

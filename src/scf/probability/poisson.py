@@ -3,13 +3,16 @@ Poisson limit + thinning as a null hypothesis for feature firings.
 
 Null model: feature i fires independently across turns with probability p_i,
 where p_i is estimated as the empirical firing rate. Under this model the
-number of active features per turn is the sum of independent Bernoullis,
-which is approximately Poisson(lambda) for small p_i with lambda = sum_i p_i
-(Le Cam's theorem; total variation distance <= sum p_i^2).
+number of active features per turn is the sum of independent Bernoullis, which
+the Poisson-limit-of-the-Binomial (course item 13) approximates by
+Poisson(lambda) for small p_i with lambda = sum_i p_i. The approximation only
+holds when the firing rates are small; we report sum_i p_i^2 as the size of the
+correction term -- when it is far above 1 the Poisson approximation was never
+going to hold.
 
 We compare empirical P(N = k) to the Poisson PMF and report a chi-squared
-discrepancy. The hypothesis is that real data deviates *above* the null
-because features are correlated — thats the finding to report.
+discrepancy and the Fano factor. The hypothesis is that real data deviates
+*above* the null because features are correlated — thats the finding to report.
 """
 from __future__ import annotations
 from dataclasses import dataclass
@@ -22,7 +25,7 @@ from scipy.stats import poisson, chi2
 @dataclass
 class PoissonTest:
     lambda_hat: float
-    le_cam_bound: float        # TV bound: sum p_i^2
+    poisson_approx_error: float   # correction term sum_i p_i^2 (small => Poisson OK)
     chi2_stat: float
     chi2_dof: int
     chi2_pvalue: float
@@ -43,7 +46,7 @@ def poisson_thinning_test(
     A = np.asarray(firing_indicator, dtype=np.int8)
     p = A.mean(axis=0)                  # per-feature firing rate
     lam = float(p.sum())
-    le_cam = float(np.sum(p ** 2))
+    approx_error = float(np.sum(p ** 2))
     n_active = A.sum(axis=1)            # per-turn count
 
     if max_k is None:
@@ -60,7 +63,7 @@ def poisson_thinning_test(
 
     return PoissonTest(
         lambda_hat=lam,
-        le_cam_bound=le_cam,
+        poisson_approx_error=approx_error,
         chi2_stat=chi2_stat,
         chi2_dof=dof,
         chi2_pvalue=pval,

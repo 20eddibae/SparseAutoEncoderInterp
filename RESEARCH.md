@@ -131,7 +131,8 @@ The paper tracks the **L0 norm** (number of features active per token; target
 < 10–20) and **feature-density histograms** (log-scale; the bimodal "ultralow-
 density cluster" vs the interpretable high-density cluster; 168 dead + 292
 ultralow of 4096). Our `N_active` per turn is a sum of 4096 Bernoulli firings →
-Le Cam Poisson(λ = Σ pᵢ), which `poisson_thinning_test` already computes. Paper-
+Poisson(λ = Σ pᵢ) under the Poisson-limit-of-the-Binomial, which
+`poisson_thinning_test` already computes. Paper-
 backed prediction: real data deviates **above** the Poisson null because
 features are correlated (feature-splitting ⇒ co-firing). Also reproduce the
 feature-density histogram and report dead / ultralow / high-density counts for
@@ -152,7 +153,7 @@ The paper argues "large feature activations have larger effects" and uses
 magnitude) to show most of a feature's *impact* comes from its high activations.
 `order_stats.py` (max activation, top1−top2 gap, top-1 fraction = a
 monosemanticity/specificity score) plus `concentration.py` (Markov's inequality
-`P(act ≥ t) ≤ μ/t`, Chebyshev, sub-Gaussian) formalize this: show that activation
+`P(act ≥ t) ≤ μ/t` and Chebyshev) formalize this: show that activation
 *mass* concentrates in the interpretable high tail, and bound that tail.
 
 ### `mgf.py` + `clt.py` ← logit-weight bimodality ("interference" mode)

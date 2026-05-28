@@ -14,7 +14,7 @@ A human-AI conversation is a stochastic process on the SAE feature space, not on
 | Technique (course item) | Module | Experiment |
 |---|---|---|
 | Tail-sum identity (5/8) | `probability/tail_sum.py` | Exp 1 |
-| Poisson-as-limit-of-Binomial + thinning, Le Cam (13/14) | `probability/poisson.py` | Exp 1 |
+| Poisson-as-limit-of-Binomial + thinning (13/14) | `probability/poisson.py` | Exp 1 |
 | Markov / Chebyshev inequalities (25/26) | `probability/concentration.py` | Exp 1 |
 | WLLN (31) | `probability/clt.py` (`running_mean`) | Exp 2 |
 | CLT (33) | `probability/clt.py` (`clt_diagnostic`) | Exp 2 |
@@ -38,7 +38,7 @@ WLLN: the running sample mean of `L0` settles onto μ. CLT: standardised block m
 Per-role marginal feature distribution. Plug-in entropy `H = E[-log p]` with a **delta-method** standard error; KL both directions; **Jensen** gives `KL ≥ 0`, so a strictly positive KL is genuine evidence the distributions differ. Finding: entropies are within 1% but the delta-method bar resolves them (AI slightly *higher*, not lower); the discriminative signal is in *which* features fire (Bayes posterior ~1.0 for top features), reported as a single line.
 
 **Experiment 4 — Conversation-mode dynamics (Markov chain only).**
-State = dominant (argmax) feature per turn. Transition matrix = row-normalised counts (the MLE is a sample mean → WLLN). Chapman–Kolmogorov residual tests first-order Markovianity; stationary π is the left eigenvector; TV(start→π) decays geometrically (mixing time). Conditional entropy of the next state, split by role, gives the **human − AI surprise gap** (+0.53 / +0.76 nats). Proof to include: re-derive CK for the argmax kernel, and note the period-2 role alternation is why the pooled 1-step chain leaves a residual — which the kept role-coupled chain (H5/H6) models.
+State = dominant (argmax) feature per turn. Transition matrix = row-normalised counts (the MLE is a sample mean → WLLN). Chapman–Kolmogorov residual (entrywise L2 distance between the empirical 2-step matrix and P̂²) tests first-order Markovianity; stationary π is the fixed point πP = π; TV(start→π) decays geometrically (mixing time). Conditional entropy of the next state, split by role, gives the **human − AI surprise gap** (+0.53 / +0.76 nats). Proof to include: re-derive CK for the argmax kernel, and note the period-2 role alternation is why the pooled 1-step chain leaves a residual — which the kept role-coupled chain (H5/H6) models.
 
 **Kept (H5/H6) — role-coupled chain + generative MCMC.**
 Two role kernels `T_{h→a}`, `T_{a→h}`; their product lowers the CK residual (~0.3). A Metropolis–Hastings sampler (detailed balance) reproduces π to TV ≈ 0.012; forward simulation inherits the surprise gap but over-counts distinct states — real dialogue is stickier.

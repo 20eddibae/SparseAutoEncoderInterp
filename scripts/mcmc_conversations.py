@@ -20,8 +20,8 @@ already-extracted per-turn features). This extends the turn-level chain in
      * METROPOLIS-HASTINGS (genuine MCMC) targeting the stationary distribution
        pi. Symmetric random-walk proposal over the K modes; acceptance uses pi
        only. We watch TV(MH-empirical, pi) -> 0 to confirm the sampler converges
-       to the same pi the eigen/power method found -- a textbook MCMC validation
-       on real data.
+       to the same pi the fixed-point (pi P = pi) iteration found -- a textbook
+       MCMC validation on real data.
 
      * FORWARD (ancestral) SIMULATION of whole synthetic conversations from the
        role-coupled kernels, matching the real conversation-length and opening-
@@ -122,7 +122,8 @@ def role_coupled_kernels(role_trajs, k):
 
 
 def coupled_ck_residual(role_trajs, T_ha, T_ah, k):
-    """2-step (human->human) empirical matrix vs T_ha @ T_ah, Frobenius residual.
+    """2-step (human->human) empirical matrix vs T_ha @ T_ah; the residual is the
+    entrywise Euclidean distance between the two matrices.
     This is the role-aware analogue of the pooled CK test: a human turn maps to
     the next human turn through one ai turn, so the model 2-step kernel is the
     product of the two role kernels."""
@@ -244,7 +245,7 @@ def analyze(features, k, seed):
     # pooled chain (reproduces markov_chain.py)
     fit = estimate_transition(plain, k)
     P, pi = fit.P_hat, fit.pi_hat
-    ck_pooled = chapman_kolmogorov_test(fit).residual_frobenius
+    ck_pooled = chapman_kolmogorov_test(fit).residual_l2
     tmix = mixing_time(P, pi, 0.25)
     h_rate = float((pi * cond_entropy_rows(P)).sum())
     pi_entropy = float(-(pi[pi > 0] * np.log(pi[pi > 0])).sum())
@@ -344,7 +345,7 @@ def main():
     print("\n=== role-coupled chain (H5/H6) ===")
     print(f"  CK residual: pooled {rc['ck_residual_pooled']:.3f} -> coupled "
           f"{rc['ck_residual_coupled']:.3f}  (improvement {rc['ck_improvement']:+.3f})")
-    print(f"  ||T_h->a - T_a->h||_F = {rc['kernel_l2_difference']:.3f}  (kernels differ)")
+    print(f"  ||T_h->a - T_a->h|| = {rc['kernel_l2_difference']:.3f}  (kernels differ)")
     print(f"  human surprise {rc['human_surprise']:.3f} vs AI self-surprise "
           f"{rc['ai_self_surprise']:.3f}  gap {rc['surprise_gap']:+.3f}")
     print("\n=== Metropolis-Hastings (target = pi) ===")

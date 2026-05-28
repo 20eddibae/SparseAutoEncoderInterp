@@ -11,8 +11,8 @@ def test_poisson_thinning_accepts_independent_bernoullis():
     A = (rng.random((3000, p.size)) < p).astype(np.int8)
     out = poisson_thinning_test(A)
     assert 0.0 < out.lambda_hat < p.sum() * 1.5
-    # le_cam upper-bound TV must be small for small p
-    assert out.le_cam_bound < 0.01
+    # Poisson-approximation correction term sum_i p_i^2 must be small for small p
+    assert out.poisson_approx_error < 0.01
 
 
 def test_mgf_recovers_normal_parameters():
